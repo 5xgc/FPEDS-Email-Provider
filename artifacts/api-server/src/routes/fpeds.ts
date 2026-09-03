@@ -343,10 +343,14 @@ router.get("/messages", async (request: AuthenticatedRequest, response) => {
   if (!user) return;
   const folder = typeof request.query.folder === "string" ? request.query.folder : "inbox";
   const query = typeof request.query.q === "string" ? request.query.q.trim() : "";
+  const folderFilter =
+    folder === "starred"
+      ? eq(messages.isStarred, true)
+      : eq(messages.folder, folder);
   const rows = await db
     .select()
     .from(messages)
-    .where(and(eq(messages.userId, user.id), eq(messages.folder, folder)))
+    .where(and(eq(messages.userId, user.id), folderFilter))
     .orderBy(desc(messages.receivedAt));
   const output = rows.map(publicMessage).filter((message) =>
     query

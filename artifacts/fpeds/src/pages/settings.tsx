@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Bell, Check, ChevronRight, FolderPlus, KeyRound, Lock, Mail, Plus, Radio, Shield, UserRound } from 'lucide-react';
 import { getGetCurrentUserQueryKey, getListFoldersQueryKey, getListNotificationsQueryKey, getListSubscriptionsQueryKey, useCreateFolder, useCreateSubscription, useGetCurrentUser, useListFolders, useListNotifications, useListSubscriptions, useMarkNotificationRead, useReceiveResendWebhook, useUpdateProfile } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { MailShell } from '@/components/mail-shell';
 const fmt = (date: string) => new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date));
 
 export default function SettingsPage() {
+  const [location] = useLocation();
   const client = useQueryClient();
   const user = useGetCurrentUser();
   const folders = useListFolders();
@@ -25,7 +27,9 @@ export default function SettingsPage() {
   const [subEmail, setSubEmail] = useState('');
   const [subLabel, setSubLabel] = useState('');
   const [notice, setNotice] = useState('');
-  const [open, setOpen] = useState('account');
+  const requestedPanel = new URLSearchParams(location.split('?')[1] ?? '').get('panel') || 'account';
+  const [open, setOpen] = useState(requestedPanel);
+  useEffect(() => { if (requestedPanel) setOpen(requestedPanel); }, [requestedPanel]);
   const [privacy, setPrivacy] = useState({ read: true, blocked: true, alerts: true });
   const show = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 3200); };
   const saveName = () => { if (username.trim()) updateProfile.mutate({ data: { username: username.trim() } }, { onSuccess: () => { client.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }); show('Profile updated.'); } }); };
