@@ -36,7 +36,10 @@ import {
 const router: IRouter = Router();
 const SESSION_COOKIE = "fpeds_session";
 const SESSION_DAYS = 30;
-const DOMAIN = "fpeds.jo3.org";
+const configuredDomain = process.env.FPEDS_MAIL_DOMAIN?.trim().toLowerCase();
+const DOMAIN = configuredDomain && /^[a-z0-9.-]+$/.test(configuredDomain)
+  ? configuredDomain
+  : "fpeds.jo3.org";
 
 type AuthenticatedRequest = Request & { fpedsUserId?: string };
 
@@ -214,7 +217,7 @@ router.post("/auth/signup", async (request, response) => {
       id: newId(),
       userId: user.id,
       folder: "inbox",
-      encryptedFrom: encryptValue("hello@fpeds.jo3.org"),
+       encryptedFrom: encryptValue(`hello@${DOMAIN}`),
       encryptedTo: encryptValue(user.email),
       encryptedSubject: encryptValue("Welcome to FPEDS"),
       encryptedBody: encryptValue(

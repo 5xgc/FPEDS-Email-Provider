@@ -11,6 +11,10 @@ function generateAccessKey() {
   return Array.from(digits, (digit) => String(digit % 10)).join("");
 }
 
+function previewUsername(username: string) {
+  return username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "") || "yourname";
+}
+
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -117,6 +121,9 @@ export default function AuthPage() {
                 className="h-12 border-white/10 bg-white/[0.04] text-white placeholder:text-white/20"
                 data-testid="input-username"
               />
+              <p className="mt-2 font-mono text-[10px] text-white/35">
+                Your mailbox will be <span className="text-white/65">{previewUsername(username)}@fpeds.jo3.org</span>
+              </p>
             </label>
           )}
 

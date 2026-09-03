@@ -10,6 +10,7 @@ FPEDS is a privacy-first email workspace for `fpeds.jo3.org` with access-key acc
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `FPEDS_MAIL_DOMAIN` — verified mailbox domain; defaults to `fpeds.jo3.org`
 
 ## Stack
 
@@ -47,6 +48,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 - `RESEND_API_KEY` and `GROQ_API_KEY` are Replit Secrets; do not put either in source control.
 - The server derives its at-rest encryption key from `FPEDS_ENCRYPTION_KEY` when present, otherwise the existing `SESSION_SECRET`.
 - Resend inbound delivery must be configured to POST normalized `{ to, from, subject, text }` payloads to `/api/webhooks/resend`.
+- The From address is never user-entered; it is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
 - The auth page is intentionally a single focused panel; do not reintroduce split-screen marketing copy without an explicit product decision.
 
 ## Pointers
