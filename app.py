@@ -46,7 +46,10 @@ app.config.update(
     SECRET_KEY=os.environ.get("SESSION_SECRET", "local-development-session-secret"),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production",
+    SESSION_COOKIE_SECURE=(
+        os.environ.get("FLASK_ENV") == "production"
+        or os.environ.get("RENDER", "").lower() == "true"
+    ),
 )
 
 
@@ -365,11 +368,18 @@ def store_inbound(sender: str, recipient: str, subject: str, body: str) -> bool:
 
 def send_smtp_message(user: sqlite3.Row, recipient: str, subject: str, body: str) -> None:
     host = os.environ.get("SMTP_HOST", "").strip()
-    port = int(os.environ.get("SMTP_PORT", "587"))
+    try:
+        port = int(os.environ.get("SMTP_PORT", "587"))
+    except ValueError as exc:
+        raise RuntimeError("SMTP_PORT must be a number such as 587 or 465.") from exc
     username = os.environ.get("SMTP_USERNAME", "").strip()
     password = os.environ.get("SMTP_PASSWORD", "")
     if not host:
-        raise RuntimeError("SMTP_HOST is not configured.")
+        raise RuntimeError(
+            "SMTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USERNAME, and SMTP_PASSWORD in Render."
+        )
+    if username and not password:
+        raise RuntimeError("SMTP_PASSWORD is missing for the configured SMTP_USERNAME.")
     sender = os.environ.get("SMTP_FROM", "").strip() or user["email"]
 
     message = EmailMessage()
@@ -410,9 +420,23 @@ def handle_send():
         return error_response("Subject and message are required.", 400)
     try:
         send_smtp_message(user, recipient, subject, body)
-    except (OSError, smtplib.SMTPException, RuntimeError, ValueError):
+    except RuntimeError as exc:
+        return error_response(str(exc), 503)
+    except smtplib.SMTPAuthenticationError:
+        app.logger.exception("SMTP authentication failed")
+        return error_response(
+            "SMTP authentication failed. Check SMTP_USERNAME and SMTP_PASSWORD in Render.",
+            502,
+        )
+    except (smtplib.SMTPConnectError, TimeoutError, OSError):
+        app.logger.exception("SMTP connection failed")
+        return error_response(
+            "The SMTP server could not be reached. Check SMTP_HOST, SMTP_PORT, and SMTP_USE_TLS in Render.",
+            502,
+        )
+    except smtplib.SMTPException:
         app.logger.exception("SMTP delivery failed")
-        return error_response("SMTP delivery failed. Your message was not sent.", 502)
+        return error_response("The SMTP relay rejected the message. Check its sender and relay permissions.", 502)
 
     message = {
         "id": new_id(),
