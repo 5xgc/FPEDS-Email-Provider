@@ -1,1 +1,2 @@
 - [Imported artifact workflows](imported-artifact-workflows.md) — imported artifact TOML can exist without registered workflows; manual workflows need explicit runtime env.
+- [Render pnpm reproducibility](render-pnpm-reproducibility.md) — declare the pnpm version when Corepack might otherwise select an incompatible latest release.
