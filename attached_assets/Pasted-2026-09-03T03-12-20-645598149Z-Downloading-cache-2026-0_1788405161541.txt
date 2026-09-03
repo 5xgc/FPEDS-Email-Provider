@@ -1,0 +1,55 @@
+2026-09-03T03:12:20.645598149Z ==> Downloading cache...
+2026-09-03T03:12:20.671894643Z ==> Cloning from https://github.com/5xgc/FPEDS-Email-Provider
+2026-09-03T03:12:21.807061248Z ==> Checking out commit 38c0fc803d527157099eb3559878ca3ded07f015 in branch main
+2026-09-03T03:12:22.637042176Z ==> Downloaded 18MB in 0s. Extraction took 0s.
+2026-09-03T03:12:23.816982483Z ==> Using Python version 3.14.3 (default)
+2026-09-03T03:12:23.816991906Z ==> Docs on specifying a Python version: https://render.com/docs/python-version
+2026-09-03T03:12:23.817094467Z ==> Installing Python version 3.14.3...
+2026-09-03T03:12:27.230388524Z ==> Using Poetry version 2.1.3 (default)
+2026-09-03T03:12:27.268405615Z ==> Docs on specifying a Poetry version: https://render.com/docs/poetry-version
+2026-09-03T03:12:27.319057274Z ==> Running build command 'pip install -r requirements.txt && corepack enable && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build && test -f artifacts/fpeds/dist/public/index.html'...
+2026-09-03T03:12:27.717093934Z Collecting Flask==3.1.2 (from -r requirements.txt (line 1))
+2026-09-03T03:12:27.718262009Z   Using cached flask-3.1.2-py3-none-any.whl.metadata (3.2 kB)
+2026-09-03T03:12:27.738690038Z Collecting gunicorn==23.0.0 (from -r requirements.txt (line 2))
+2026-09-03T03:12:27.739692559Z   Using cached gunicorn-23.0.0-py3-none-any.whl.metadata (4.4 kB)
+2026-09-03T03:12:27.754425269Z Collecting blinker>=1.9.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.755353559Z   Using cached blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+2026-09-03T03:12:27.773709773Z Collecting click>=8.1.3 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.774628492Z   Using cached click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-09-03T03:12:27.788047678Z Collecting itsdangerous>=2.2.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.788970665Z   Using cached itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+2026-09-03T03:12:27.804765537Z Collecting jinja2>=3.1.2 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.805697958Z   Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2026-09-03T03:12:27.852737654Z Collecting markupsafe>=2.1.1 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.853665943Z   Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2026-09-03T03:12:27.878146214Z Collecting werkzeug>=3.1.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-03T03:12:27.879092688Z   Using cached werkzeug-3.1.8-py3-none-any.whl.metadata (4.0 kB)
+2026-09-03T03:12:27.897493464Z Collecting packaging (from gunicorn==23.0.0->-r requirements.txt (line 2))
+2026-09-03T03:12:27.898415409Z   Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+2026-09-03T03:12:27.903834206Z Using cached flask-3.1.2-py3-none-any.whl (103 kB)
+2026-09-03T03:12:27.904829179Z Using cached gunicorn-23.0.0-py3-none-any.whl (85 kB)
+2026-09-03T03:12:27.905832266Z Using cached blinker-1.9.0-py3-none-any.whl (8.5 kB)
+2026-09-03T03:12:27.906695122Z Using cached click-8.5.0-py3-none-any.whl (125 kB)
+2026-09-03T03:12:27.907633764Z Using cached itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+2026-09-03T03:12:27.908672485Z Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+2026-09-03T03:12:27.909806898Z Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (23 kB)
+2026-09-03T03:12:27.910716505Z Using cached werkzeug-3.1.8-py3-none-any.whl (226 kB)
+2026-09-03T03:12:27.911666185Z Using cached packaging-26.3-py3-none-any.whl (129 kB)
+2026-09-03T03:12:27.928689578Z Installing collected packages: packaging, markupsafe, itsdangerous, click, blinker, werkzeug, jinja2, gunicorn, Flask
+2026-09-03T03:12:28.393013513Z 
+2026-09-03T03:12:28.394328376Z Successfully installed Flask-3.1.2 blinker-1.9.0 click-8.5.0 gunicorn-23.0.0 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.3 packaging-26.3 werkzeug-3.1.8
+2026-09-03T03:12:28.397559919Z 
+2026-09-03T03:12:28.397565297Z [notice] A new release of pip is available: 25.3 -> 26.2.1
+2026-09-03T03:12:28.39756692Z [notice] To update, run: pip install --upgrade pip
+2026-09-03T03:12:28.51539973Z ==> Using Node.js version 24.14.1 (default)
+2026-09-03T03:12:28.515406203Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-09-03T03:12:28.591038294Z Internal Error: EROFS: read-only file system, unlink '/usr/bin/pnpm'
+2026-09-03T03:12:28.591053527Z     at async Object.unlink (node:internal/fs/promises:1066:10)
+2026-09-03T03:12:28.5910555Z     at async EnableCommand.generatePosixLink (/usr/lib/node_modules/corepack/dist/lib/corepack.cjs:23216:7)
+2026-09-03T03:12:28.591057758Z     at async Promise.all (index 0)
+2026-09-03T03:12:28.591059142Z     at async EnableCommand.execute (/usr/lib/node_modules/corepack/dist/lib/corepack.cjs:23199:5)
+2026-09-03T03:12:28.591060743Z     at async EnableCommand.validateAndExecute (/usr/lib/node_modules/corepack/dist/lib/corepack.cjs:20278:22)
+2026-09-03T03:12:28.591064361Z     at async _Cli.run (/usr/lib/node_modules/corepack/dist/lib/corepack.cjs:21215:18)
+2026-09-03T03:12:28.591065779Z     at async Object.runMain (/usr/lib/node_modules/corepack/dist/lib/corepack.cjs:23704:19)
+2026-09-03T03:12:28.618810103Z ==> Build failed 😞
+2026-09-03T03:12:28.618832084Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
