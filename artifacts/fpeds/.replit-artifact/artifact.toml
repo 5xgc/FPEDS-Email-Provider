@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
 title = "FPEDS Mail"
-description = "A secure, privacy-first email workspace for fpeds.jo3.org with access-key accounts, encrypted mailbox storage, folders, subscriptions, and intelligent spam protection."
+description = "A secure, privacy-first email workspace for fpeds.2bd.net with access-key accounts, local mailbox storage, folders, subscriptions, SMTP sending, and Cloudflare inbound delivery."
 version = "1.0.0"
 id = "artifacts/fpeds"
 router = "path"

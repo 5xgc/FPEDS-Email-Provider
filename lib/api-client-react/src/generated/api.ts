@@ -24,13 +24,13 @@ import type {
   Folder,
   FolderInput,
   HealthStatus,
+  InboundWebhook,
   ListMessagesParams,
   MailboxSummary,
   Message,
   MessageUpdate,
   Notification,
   ProfileUpdate,
-  ResendWebhook,
   SendMessageInput,
   SignInInput,
   SignUpInput,
@@ -675,7 +675,7 @@ export const getSendMessageUrl = () => {
 }
 
 /**
- * @summary Send an encrypted message through Resend
+ * @summary Send an encrypted message through the server's SMTP relay
  */
 export const sendMessage = async (sendMessageInput: SendMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
 
@@ -724,7 +724,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SendMessageMutationError = ErrorType<void>
 
     /**
- * @summary Send an encrypted message through Resend
+ * @summary Send an encrypted message through the server's SMTP relay
  */
 export const useSendMessage = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessage>>, TError,{data: BodyType<SendMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1330,25 +1330,25 @@ export const useMarkNotificationRead = <TError = ErrorType<unknown>,
       return useMutation(getMarkNotificationReadMutationOptions(options));
     }
 
-export const getReceiveResendWebhookUrl = () => {
+export const getReceiveInboundWebhookUrl = () => {
 
 
 
 
-  return `/api/webhooks/resend`
+  return `/api/webhook/inbound`
 }
 
 /**
- * @summary Receive inbound mail from Resend
+ * @summary Receive inbound mail from Cloudflare Email Routing
  */
-export const receiveResendWebhook = async (resendWebhook: ResendWebhook, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const receiveInboundWebhook = async (inboundWebhook: InboundWebhook, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<void>(getReceiveResendWebhookUrl(),
+  return customFetch<void>(getReceiveInboundWebhookUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(resendWebhook)
+    body: JSON.stringify(inboundWebhook)
   }
 );}
 
@@ -1356,11 +1356,11 @@ export const receiveResendWebhook = async (resendWebhook: ResendWebhook, options
 
 
 
-export const getReceiveResendWebhookMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveResendWebhook>>, TError,{data: BodyType<ResendWebhook>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof receiveResendWebhook>>, TError,{data: BodyType<ResendWebhook>}, TContext> => {
+export const getReceiveInboundWebhookMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveInboundWebhook>>, TError,{data: BodyType<InboundWebhook>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveInboundWebhook>>, TError,{data: BodyType<InboundWebhook>}, TContext> => {
 
-const mutationKey = ['receiveResendWebhook'];
+const mutationKey = ['receiveInboundWebhook'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1370,10 +1370,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveResendWebhook>>, {data: BodyType<ResendWebhook>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveInboundWebhook>>, {data: BodyType<InboundWebhook>}> = (props) => {
           const {data} = props ?? {};
 
-          return  receiveResendWebhook(data,requestOptions)
+          return  receiveInboundWebhook(data,requestOptions)
         }
 
 
@@ -1383,21 +1383,21 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ReceiveResendWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveResendWebhook>>>
-    export type ReceiveResendWebhookMutationBody = BodyType<ResendWebhook>
-    export type ReceiveResendWebhookMutationError = ErrorType<unknown>
+    export type ReceiveInboundWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveInboundWebhook>>>
+    export type ReceiveInboundWebhookMutationBody = BodyType<InboundWebhook>
+    export type ReceiveInboundWebhookMutationError = ErrorType<unknown>
 
     /**
- * @summary Receive inbound mail from Resend
+ * @summary Receive inbound mail from Cloudflare Email Routing
  */
-export const useReceiveResendWebhook = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveResendWebhook>>, TError,{data: BodyType<ResendWebhook>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useReceiveInboundWebhook = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveInboundWebhook>>, TError,{data: BodyType<InboundWebhook>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof receiveResendWebhook>>,
+        Awaited<ReturnType<typeof receiveInboundWebhook>>,
         TError,
-        {data: BodyType<ResendWebhook>},
+        {data: BodyType<InboundWebhook>},
         TContext
       > => {
-      return useMutation(getReceiveResendWebhookMutationOptions(options));
+      return useMutation(getReceiveInboundWebhookMutationOptions(options));
     }
 

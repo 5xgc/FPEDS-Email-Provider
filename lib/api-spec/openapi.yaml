@@ -155,7 +155,7 @@ paths:
     post:
       operationId: sendMessage
       tags: [mailbox]
-      summary: Send an encrypted message through Resend
+      summary: Send an encrypted message through the server's SMTP relay
       requestBody:
         required: true
         content:
@@ -292,17 +292,17 @@ paths:
       responses:
         "204":
           description: Marked read
-  /webhooks/resend:
+  /webhook/inbound:
     post:
-      operationId: receiveResendWebhook
+      operationId: receiveInboundWebhook
       tags: [mailbox]
-      summary: Receive inbound mail from Resend
+      summary: Receive inbound mail from Cloudflare Email Routing
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ResendWebhook"
+              $ref: "#/components/schemas/InboundWebhook"
       responses:
         "202":
           description: Accepted
@@ -449,7 +449,7 @@ components:
         message: { type: string }
         createdAt: { type: string, format: date-time }
         isRead: { type: boolean }
-    ResendWebhook:
+    InboundWebhook:
       type: object
       required: [to, from, subject, text]
       properties:

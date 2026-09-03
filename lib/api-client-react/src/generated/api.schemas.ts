@@ -137,7 +137,7 @@ export interface Notification {
   isRead: boolean;
 }
 
-export interface ResendWebhook {
+export interface InboundWebhook {
   to: string;
   from: string;
   subject: string;

@@ -8,3 +8,9 @@ Imported projects can contain valid artifact.toml files while having no register
 **Why:** Without those values, both the API entrypoint and Vite config fail before opening their configured ports. A legacy workflow on an unsupported raw port can show a blank webview even while localhost responds.
 
 **How to apply:** Check the workflow registry first; if the imported artifact has no workflow, create only the minimal API and web workflows using supported ports and the declared base path. If registration later creates managed services, stop/remove the legacy workflows and use the managed names.
+
+Managed artifact development commands run with the artifact directory as the working directory. Root-level runtime entrypoints therefore need an explicit relative path such as `../../app.py`.
+
+**Why:** A command that works from the workspace root can fail immediately when the same command is launched by an artifact-owned workflow.
+
+**How to apply:** Resolve the workflow's working directory before changing its command; prefer a relative path from that directory and keep the service's injected `PORT`.

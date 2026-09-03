@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: fpeds-mail
+    runtime: python
+    buildCommand: pip install -r requirements.txt && corepack enable && pnpm install --frozen-lockfile && PORT=5000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: SESSION_SECRET
+        sync: false
+      - key: FPEDS_MAIL_DOMAIN
+        value: fpeds.2bd.net
+      - key: SQLITE_PATH
+        value: /var/data/fpeds.sqlite3
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: INBOUND_WEBHOOK_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+    disk:
+      name: fpeds-mail-data
+      mountPath: /var/data
+      sizeGB: 1

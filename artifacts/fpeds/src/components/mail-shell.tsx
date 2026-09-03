@@ -40,7 +40,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           <LogoMark /><span className="text-[15px] font-extrabold tracking-[.22em] text-foreground">FPEDS<span className="text-primary">.</span></span>
         </Link>
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 text-right sm:flex"><p className="text-sm font-semibold">{userQuery.data?.username ?? 'Private member'}</p><p className="font-mono text-[10px] text-muted-foreground">{userQuery.data?.email ?? 'fpeds.jo3.org'}</p></div>
+          <div className="hidden items-center gap-2 text-right sm:flex"><p className="text-sm font-semibold">{userQuery.data?.username ?? 'Private member'}</p><p className="font-mono text-[10px] text-muted-foreground">{userQuery.data?.email ?? 'fpeds.2bd.net'}</p></div>
           <div className="grid h-9 w-9 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
           <button onClick={() => setOpen(!open)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
         </div>

@@ -1,25 +1,29 @@
 # FPEDS Mail
 
-FPEDS is a privacy-first email workspace for `fpeds.jo3.org` with access-key accounts, encrypted mailbox content, folders, subscriptions, and AI-assisted spam filtering.
+FPEDS is a self-hosted email workspace for `fpeds.2bd.net` with access-key accounts, local SQLite mailbox storage, folders, subscriptions, native SMTP sending, Cloudflare inbound delivery, and optional AI-assisted spam filtering.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `python app.py` — run the Flask webmail service locally
+- `gunicorn app:app --bind 0.0.0.0:$PORT` — run the production server on Render
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
-- Optional env: `FPEDS_MAIL_DOMAIN` — verified mailbox domain; defaults to `fpeds.jo3.org`
+- Required env: `SESSION_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, and `SMTP_PASSWORD`
+- Optional env: `FPEDS_MAIL_DOMAIN` — mailbox domain; defaults to `fpeds.2bd.net`
+- Optional env: `SQLITE_PATH` — SQLite file path; set this to a Render persistent disk path
+- Optional env: `INBOUND_WEBHOOK_SECRET` — shared secret checked on Cloudflare inbound webhook requests
+- Optional env: `GROQ_API_KEY` — enables AI spam scoring; heuristic scoring works without it
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Backend: Flask + Gunicorn
+- DB: SQLite via Python's standard-library `sqlite3`
+- Mail delivery: Python `smtplib` and `email.message.EmailMessage`
+- Frontend: existing React/Vite mailbox, served as static files by Flask
+- Deployment: Render Blueprint in `render.yaml`
 
 ## Where things live
 
@@ -33,7 +37,8 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 - Focused access-key sign-in and generated-key account creation
 - Mailbox views for inbox, sent, drafts, spam, search, starring, and message reading
-- Compose/send through Resend, with inbound webhook handling
+- Compose/send through a standard SMTP relay
+- Incoming mail through a Cloudflare Email Routing JSON webhook
 - Groq-powered spam scoring with blocked-message notifications
 - Custom folders, subscriptions, notification center, and profile settings
 - Annual limit of two username/email address changes
@@ -45,10 +50,11 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-- `RESEND_API_KEY` and `GROQ_API_KEY` are Replit Secrets; do not put either in source control.
-- The server derives its at-rest encryption key from `FPEDS_ENCRYPTION_KEY` when present, otherwise the existing `SESSION_SECRET`.
-- Resend inbound delivery must be configured to POST normalized `{ to, from, subject, text }` payloads to `/api/webhooks/resend`.
-- The From address is never user-entered; it is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
+- `SESSION_SECRET`, SMTP credentials, `INBOUND_WEBHOOK_SECRET`, and `GROQ_API_KEY` are environment secrets; do not put them in source control.
+- Each account's mailbox is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
+- Cloudflare must POST JSON containing `sender`/`from`, `recipient`/`to`, `subject`, and `body`/`text` to `/webhook/inbound`.
+- The inbound webhook only accepts recipients at `FPEDS_MAIL_DOMAIN` and silently ignores unknown usernames.
+- Render's SQLite path must be on a persistent disk if mailbox data should survive deploys or restarts.
 - The auth page is intentionally a single focused panel; do not reintroduce split-screen marketing copy without an explicit product decision.
 
 ## Pointers

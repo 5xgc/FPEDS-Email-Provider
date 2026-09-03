@@ -148,7 +148,7 @@ export const ListMessagesResponse = zod.array(ListMessagesResponseItem)
 
 
 /**
- * @summary Send an encrypted message through Resend
+ * @summary Send an encrypted message through the server's SMTP relay
  */
 export const sendMessageBodyToMin = 3;
 
@@ -320,15 +320,15 @@ export const MarkNotificationReadResponse = zod.void()
 
 
 /**
- * @summary Receive inbound mail from Resend
+ * @summary Receive inbound mail from Cloudflare Email Routing
  */
-export const ReceiveResendWebhookBody = zod.object({
+export const ReceiveInboundWebhookBody = zod.object({
   "to": zod.string(),
   "from": zod.string(),
   "subject": zod.string(),
   "text": zod.string()
 })
 
-export const ReceiveResendWebhookResponse = zod.void()
+export const ReceiveInboundWebhookResponse = zod.void()
 
 
