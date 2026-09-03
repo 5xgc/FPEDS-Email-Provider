@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FPEDS Mail"
+description = "A secure, privacy-first email workspace for fpeds.jo3.org with access-key accounts, encrypted mailbox storage, folders, subscriptions, and intelligent spam protection."
+version = "1.0.0"
+id = "artifacts/fpeds"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25944
+
+[services.development]
+run = "pnpm --filter @workspace/fpeds run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fpeds", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fpeds/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25944"
+BASE_PATH = "/"
