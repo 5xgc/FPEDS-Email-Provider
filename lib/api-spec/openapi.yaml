@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Access-key authentication and account setup
+  - name: mailbox
+    description: Mailbox, folders, and message operations
+  - name: settings
+    description: Mailbox preferences and subscriptions
+  - name: notifications
+    description: User notifications
 paths:
   /healthz:
     get:
@@ -24,7 +32,294 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/signup:
+    post:
+      operationId: signUp
+      tags: [auth]
+      summary: Create an FPEDS account from an access key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400":
+          description: Invalid access key or username
+  /auth/signin:
+    post:
+      operationId: signIn
+      tags: [auth]
+      summary: Sign in with an access key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInInput"
+      responses:
+        "200":
+          description: Signed-in session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Access key rejected
+  /auth/signout:
+    post:
+      operationId: signOut
+      tags: [auth]
+      summary: End the current session
+      responses:
+        "204":
+          description: Signed out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Return the current account
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not signed in
+  /auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Change the display name or mailbox address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid change or annual limit reached
+  /mailbox/summary:
+    get:
+      operationId: getMailboxSummary
+      tags: [mailbox]
+      summary: Return mailbox counts and activity
+      responses:
+        "200":
+          description: Mailbox summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailboxSummary"
+  /messages:
+    get:
+      operationId: listMessages
+      tags: [mailbox]
+      summary: List messages for a folder
+      parameters:
+        - name: folder
+          in: query
+          required: false
+          schema:
+            type: string
+            default: inbox
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [mailbox]
+      summary: Send an encrypted message through Resend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageInput"
+      responses:
+        "201":
+          description: Sent message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid recipient or message
+  /messages/{id}:
+    get:
+      operationId: getMessage
+      tags: [mailbox]
+      summary: Read a single message
+      parameters:
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "200":
+          description: Message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: Message not found
+    patch:
+      operationId: updateMessage
+      tags: [mailbox]
+      summary: Update read state or move a message
+      parameters:
+        - $ref: "#/components/parameters/MessageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageUpdate"
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /folders:
+    get:
+      operationId: listFolders
+      tags: [mailbox]
+      summary: List mailbox folders
+      responses:
+        "200":
+          description: Folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Folder"
+    post:
+      operationId: createFolder
+      tags: [mailbox]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderInput"
+      responses:
+        "201":
+          description: Folder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+  /subscriptions:
+    get:
+      operationId: listSubscriptions
+      tags: [settings]
+      summary: List email subscriptions
+      responses:
+        "200":
+          description: Subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subscription"
+    post:
+      operationId: createSubscription
+      tags: [settings]
+      summary: Subscribe to an email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "201":
+          description: Subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List recent notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "204":
+          description: Marked read
+  /webhooks/resend:
+    post:
+      operationId: receiveResendWebhook
+      tags: [mailbox]
+      summary: Receive inbound mail from Resend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendWebhook"
+      responses:
+        "202":
+          description: Accepted
 components:
+  parameters:
+    MessageId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +328,133 @@ components:
           type: string
       required:
         - status
+    SignUpInput:
+      type: object
+      required: [accessKey, username]
+      properties:
+        accessKey:
+          type: string
+          minLength: 50
+          maxLength: 50
+        username:
+          type: string
+          minLength: 1
+          maxLength: 40
+    SignInInput:
+      type: object
+      required: [accessKey]
+      properties:
+        accessKey:
+          type: string
+          minLength: 50
+          maxLength: 50
+    AuthSession:
+      type: object
+      required: [user, firstLogin]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        firstLogin:
+          type: boolean
+    User:
+      type: object
+      required: [id, username, email, createdAt, emailChangesRemaining]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        createdAt: { type: string, format: date-time }
+        emailChangesRemaining: { type: number }
+    ProfileUpdate:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 40
+    MailboxSummary:
+      type: object
+      required: [unread, inbox, sent, spam, drafts, folders, notifications]
+      properties:
+        unread: { type: number }
+        inbox: { type: number }
+        sent: { type: number }
+        spam: { type: number }
+        drafts: { type: number }
+        folders: { type: number }
+        notifications: { type: number }
+    Message:
+      type: object
+      required: [id, folder, from, to, subject, preview, body, receivedAt, isRead, isStarred, spamScore]
+      properties:
+        id: { type: string }
+        folder: { type: string }
+        from: { type: string }
+        to: { type: string }
+        subject: { type: string }
+        preview: { type: string }
+        body: { type: string }
+        receivedAt: { type: string, format: date-time }
+        isRead: { type: boolean }
+        isStarred: { type: boolean }
+        spamScore: { type: number }
+        blocked: { type: boolean }
+    SendMessageInput:
+      type: object
+      required: [to, subject, body]
+      properties:
+        to: { type: string, minLength: 3 }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string, minLength: 1, maxLength: 100000 }
+    MessageUpdate:
+      type: object
+      properties:
+        folder: { type: string }
+        isRead: { type: boolean }
+        isStarred: { type: boolean }
+    Folder:
+      type: object
+      required: [id, name, count]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        count: { type: number }
+    FolderInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+    Subscription:
+      type: object
+      required: [id, email, label, active]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        label: { type: string }
+        active: { type: boolean }
+    SubscriptionInput:
+      type: object
+      required: [email, label]
+      properties:
+        email: { type: string, minLength: 3 }
+        label: { type: string, minLength: 1, maxLength: 60 }
+    Notification:
+      type: object
+      required: [id, kind, title, message, createdAt, isRead]
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        title: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+        isRead: { type: boolean }
+    ResendWebhook:
+      type: object
+      required: [to, from, subject, text]
+      properties:
+        to: { type: string }
+        from: { type: string }
+        subject: { type: string }
+        text: { type: string }
 

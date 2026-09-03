@@ -1,6 +1,6 @@
-# [Project name]
+# FPEDS Mail
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+FPEDS is a privacy-first email workspace for `fpeds.jo3.org` with access-key accounts, encrypted mailbox content, folders, subscriptions, and AI-assisted spam filtering.
 
 ## Run & Operate
 
@@ -30,7 +30,13 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Focused access-key sign-in and generated-key account creation
+- Mailbox views for inbox, sent, drafts, spam, search, starring, and message reading
+- Compose/send through Resend, with inbound webhook handling
+- Groq-powered spam scoring with blocked-message notifications
+- Custom folders, subscriptions, notification center, and profile settings
+- Annual limit of two username/email address changes
+- Encrypted sensitive mailbox fields with no message-body logging
 
 ## User preferences
 
@@ -38,7 +44,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- `RESEND_API_KEY` and `GROQ_API_KEY` are Replit Secrets; do not put either in source control.
+- The server derives its at-rest encryption key from `FPEDS_ENCRYPTION_KEY` when present, otherwise the existing `SESSION_SECRET`.
+- Resend inbound delivery must be configured to POST normalized `{ to, from, subject, text }` payloads to `/api/webhooks/resend`.
+- The auth page is intentionally a single focused panel; do not reintroduce split-screen marketing copy without an explicit product decision.
 
 ## Pointers
 

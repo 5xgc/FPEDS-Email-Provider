@@ -1,23 +1,8 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle } from 'lucide-react';
+import { ArrowLeft, Unplug } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Button } from '@/components/ui/button';
 
 export default function NotFound() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">
-              404 Page Not Found
-            </h1>
-          </div>
-
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const [, setLocation] = useLocation();
+  return <main className="flex min-h-[100dvh] items-center justify-center bg-background p-6"><div className="max-w-md text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary"><Unplug className="h-6 w-6" /></div><p className="mt-8 font-mono text-[10px] uppercase tracking-[.22em] text-primary">Quietly lost</p><h1 className="mt-3 font-display text-5xl">This address is empty.</h1><p className="mt-4 text-sm leading-6 text-muted-foreground">The page you’re looking for is not part of this private workspace.</p><Button onClick={() => setLocation('/')} className="mt-7" data-testid="button-return-home"><ArrowLeft className="h-4 w-4" /> Return to entry</Button></div></main>;
 }
