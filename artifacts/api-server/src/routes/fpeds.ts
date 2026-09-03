@@ -411,7 +411,11 @@ router.post("/messages", async (request: AuthenticatedRequest, response) => {
   const { to, subject, body } = parsed.data;
   const from = user.email;
   const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
+  if (!resendKey) {
+    response.status(503).json({ error: "Outbound email is not configured yet. Add RESEND_API_KEY to the server environment." });
+    return;
+  }
+  try {
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
@@ -426,6 +430,9 @@ router.post("/messages", async (request: AuthenticatedRequest, response) => {
       response.status(502).json({ error: "The mail provider rejected this message." });
       return;
     }
+  } catch {
+    response.status(502).json({ error: "The mail provider could not be reached. Your message was not sent." });
+    return;
   }
   const [created] = await db
     .insert(messages)
@@ -547,11 +554,82 @@ router.post("/notifications/:id/read", async (request: AuthenticatedRequest, res
   response.status(204).send();
 });
 
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n\s+/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
 router.post("/webhooks/resend", async (request, response) => {
-  const to = String(request.body?.to ?? "");
-  const from = String(request.body?.from ?? "");
-  const subject = String(request.body?.subject ?? "");
-  const body = String(request.body?.text ?? "");
+  const event = request.body as {
+    type?: string;
+    data?: {
+      email_id?: string;
+      from?: string;
+      to?: string[];
+      received_for?: string[];
+      subject?: string;
+    };
+    to?: string;
+    from?: string;
+    subject?: string;
+    text?: string;
+  };
+  if (event?.type && event.type !== "email.received") {
+    response.status(200).json({ received: true });
+    return;
+  }
+
+  let to = event?.to ?? event?.data?.received_for?.[0] ?? event?.data?.to?.[0] ?? "";
+  let from = event?.from ?? event?.data?.from ?? "";
+  let subject = event?.subject ?? event?.data?.subject ?? "";
+  let body = event?.text ?? "";
+
+  if (event?.type === "email.received") {
+    const resendKey = process.env.RESEND_API_KEY;
+    const emailId = event.data?.email_id;
+    if (!resendKey || !emailId) {
+      response.status(503).json({ error: "Inbound email retrieval is not configured." });
+      return;
+    }
+    try {
+      const receivedResponse = await fetch(
+        `https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`,
+        { headers: { Authorization: `Bearer ${resendKey}` } },
+      );
+      if (!receivedResponse.ok) {
+        response.status(502).json({ error: "The received email could not be retrieved from Resend." });
+        return;
+      }
+      const received = (await receivedResponse.json()) as {
+        from?: string;
+        to?: string[];
+        received_for?: string[];
+        subject?: string;
+        text?: string | null;
+        html?: string | null;
+      };
+      to = received.received_for?.[0] ?? received.to?.[0] ?? to;
+      from = received.from ?? from;
+      subject = received.subject ?? subject;
+      body = received.text?.trim() || (received.html ? htmlToText(received.html) : "");
+    } catch {
+      response.status(502).json({ error: "The received email could not be retrieved from Resend." });
+      return;
+    }
+  }
+
   const username = to.split("@")[0]?.toLowerCase();
   if (!username || !from || !subject || !body) {
     response.status(400).json({ error: "Invalid inbound message." });

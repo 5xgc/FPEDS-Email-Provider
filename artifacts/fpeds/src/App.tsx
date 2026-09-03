@@ -8,7 +8,7 @@ import ComposePage from '@/pages/compose';
 import InboxPage from '@/pages/inbox';
 import NotFound from '@/pages/not-found';
 import SettingsPage from '@/pages/settings';
-import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { Route, Switch, useLocation, useRoute, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 20_000, retry: 1 } } });
 
@@ -18,14 +18,30 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 }
 
 function Router() {
-  return <RoutedErrorBoundary><Switch><Route path="/" component={AuthPage} /><Route path="/inbox" component={InboxPage} /><Route path="/compose" component={ComposePage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></RoutedErrorBoundary>;
+  return <RoutedErrorBoundary><Switch>
+    <Route path="/" component={AuthPage} />
+    <Route path="/inbox">{() => <InboxPage folder="inbox" />}</Route>
+    <Route path="/starred">{() => <InboxPage folder="starred" />}</Route>
+    <Route path="/sent">{() => <InboxPage folder="sent" />}</Route>
+    <Route path="/drafts">{() => <InboxPage folder="drafts" />}</Route>
+    <Route path="/spam">{() => <InboxPage folder="spam" />}</Route>
+    <Route path="/folder/:name">{() => <CustomFolderRoute />}</Route>
+    <Route path="/compose" component={ComposePage} />
+    <Route path="/settings" component={SettingsPage} />
+    <Route component={NotFound} />
+  </Switch></RoutedErrorBoundary>;
+}
+
+function CustomFolderRoute() {
+  const [, params] = useRoute('/folder/:name');
+  return <InboxPage folder={decodeURIComponent(params?.name ?? '')} />;
 }
 
 function PageMetadata() {
   const [location] = useLocation();
   useEffect(() => {
     const page = location.split("?")[0];
-    const title = page === "/inbox" ? "Inbox — FPEDS Mail" : page === "/compose" ? "Compose — FPEDS Mail" : page === "/settings" ? "Settings — FPEDS Mail" : "FPEDS Mail — Private email, without the noise";
+    const title = page === "/inbox" ? "Inbox — FPEDS Mail" : page === "/starred" ? "Starred — FPEDS Mail" : page === "/sent" ? "Sent — FPEDS Mail" : page === "/drafts" ? "Drafts — FPEDS Mail" : page === "/spam" ? "Spam — FPEDS Mail" : page.startsWith("/folder/") ? `${decodeURIComponent(page.split("/")[2] ?? "Folder")} — FPEDS Mail` : page === "/compose" ? "Compose — FPEDS Mail" : page === "/settings" ? "Settings — FPEDS Mail" : "FPEDS Mail — Private email, without the noise";
     document.title = title;
     const description = document.querySelector('meta[name="description"]');
     description?.setAttribute("content", "FPEDS is a security-first private email provider for fpeds.jo3.org. No tracking, no behavioral profiling, and encrypted mailbox storage.");
