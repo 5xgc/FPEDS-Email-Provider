@@ -41,7 +41,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 - Focused access-key sign-in and generated-key account creation
 - Mailbox views for inbox, sent, drafts, spam, search, starring, and message reading
 - Compose/send through the Brevo transactional email API
-- Incoming mail through the Brevo Inbound Parsing webhook
+- Incoming mail through the Brevo Inbound Parsing webhook (with a Cloudflare Email Worker adapter also included)
 - Groq-powered spam scoring with blocked-message notifications
 - Custom folders, subscriptions, notification center, and profile settings
 - Annual limit of two username/email address changes
@@ -55,7 +55,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - `SESSION_SECRET`, SMTP credentials, `INBOUND_WEBHOOK_SECRET`, and `GROQ_API_KEY` are environment secrets; do not put them in source control.
 - Each account's mailbox is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
-- Cloudflare must POST JSON containing `sender`/`from`, `recipient`/`to`, `subject`, and `body`/`text` to `/webhook/inbound`.
+- The inbound endpoint accepts both the normalized Cloudflare payload and Brevo's `{ "items": [...] }` payload with `From`, `Recipients`/`To`, `Subject`, and `ExtractedMarkdownMessage`.
 - The inbound webhook only accepts recipients at `FPEDS_MAIL_DOMAIN` and silently ignores unknown usernames.
 - Render's SQLite path must be on a persistent disk if mailbox data should survive deploys or restarts.
 - The auth page is intentionally a single focused panel; do not reintroduce split-screen marketing copy without an explicit product decision.
@@ -91,19 +91,22 @@ Verify `fpeds.2bd.net` as a Brevo sending domain, create a Brevo API key, and se
 
 ### Incoming mail
 
-The app does not run an IMAP server. Incoming delivery is handled by Brevo Inbound Parsing:
+The app does not run an IMAP server. With the current DNS records, incoming delivery is handled directly by Brevo Inbound Parsing:
 
-1. Configure Brevo Inbound Parsing for `fpeds.2bd.net`.
+1. Verify `fpeds.2bd.net` in Brevo and create an inbound webhook with event `inboundEmailProcessed` and domain `fpeds.2bd.net`.
 2. Set its webhook URL to
-   `https://YOUR-SERVICE.onrender.com/webhook/inbound?secret=<INBOUND_WEBHOOK_SECRET>`.
-3. Brevo forwards the sender, recipient, subject, and parsed text/body as JSON.
-4. Create an FPEDS account for each username before sending mail to
-   `<username>@FPEDS_MAIL_DOMAIN`; unknown usernames are intentionally ignored.
+   `https://YOUR-SERVICE.onrender.com/webhook/inbound?secret=<INBOUND_WEBHOOK_SECRET>` when `INBOUND_WEBHOOK_SECRET` is set.
+3. Keep these MX records on `fpeds.2bd.net`: priority 10 `inbound1.sendinblue.com.` and priority 20 `inbound2.sendinblue.com.`. If Gmail reports `550 5.1.2 Recipient address rejected`, Brevo is receiving the domain but the receiving domain/webhook is not enabled or verified in Brevo yet.
+4. Brevo posts a JSON payload with an `items` array. The app extracts the sender, recipient, subject, and parsed message body, then stores it in the matching FPEDS mailbox.
+5. Create an FPEDS account for each username before sending mail to `<username>@FPEDS_MAIL_DOMAIN`; unknown usernames are intentionally ignored.
+
+The included `cloudflare-email-worker.js` is an alternative adapter only. Do not use it at the same time as Brevo inbound MX records: choose either Brevo inbound parsing or Cloudflare Email Routing, and configure the matching MX records.
 
 The inbound endpoint is `POST /webhook/inbound` and requires JSON plus the
-`X-Webhook-Secret` header when `INBOUND_WEBHOOK_SECRET` is set. A deployed service must be public
-so Cloudflare can reach it. Test the endpoint only after the Render deploy is live by sending a
-message to an existing FPEDS mailbox and checking that it appears in Inbox or Spam.
+`X-Webhook-Secret` header or `secret` query parameter when `INBOUND_WEBHOOK_SECRET` is set.
+A deployed service must be public so Brevo can reach it. Test the endpoint only after the Render
+deploy is live by sending a message to an existing FPEDS mailbox and checking that it appears in
+Inbox or Spam.
 
 ## Pointers
 

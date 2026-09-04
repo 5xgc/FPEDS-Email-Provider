@@ -294,7 +294,7 @@ def extract_first(value: Any) -> str:
     if isinstance(value, list):
         return extract_first(value[0]) if value else ""
     if isinstance(value, dict):
-        for key in ("email", "address", "value"):
+        for key in ("email", "Email", "address", "Address", "value", "Value"):
             if value.get(key):
                 return str(value[key]).strip()
         return ""
@@ -302,19 +302,32 @@ def extract_first(value: Any) -> str:
 
 
 def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str]:
+    # Brevo sends { "items": [{ "From": ..., "Recipients": ..., ... }] },
+    # while the Cloudflare adapter sends normalized fields at the root.
+    item = payload.get("items")
+    if isinstance(item, list) and item and isinstance(item[0], dict):
+        payload = item[0]
+
     sender = extract_first(
         payload.get("sender")
         or payload.get("from")
+        or payload.get("From")
         or payload.get("source")
         or payload.get("envelope", {}).get("from")
     )
     recipient = extract_first(
         payload.get("recipient")
         or payload.get("to")
+        or payload.get("To")
+        or payload.get("Recipients")
         or payload.get("delivered_to")
         or payload.get("envelope", {}).get("to")
     )
-    subject = extract_first(payload.get("subject") or payload.get("headers", {}).get("subject"))
+    subject = extract_first(
+        payload.get("subject")
+        or payload.get("Subject")
+        or payload.get("headers", {}).get("subject")
+    )
     body = extract_first(
         payload.get("text")
         or payload.get("body")
@@ -879,8 +892,8 @@ def inbound_webhook():
     sender, recipient, subject, body = extract_inbound_payload(payload)
     if not sender or not recipient or not subject or not body:
         return error_response("Inbound payload must include sender, recipient, subject, and body/text.", 400)
-    store_inbound(sender, recipient, subject, body)
-    return jsonify({"accepted": True}), 202
+    stored = store_inbound(sender, recipient, subject, body)
+    return jsonify({"accepted": True, "stored": stored}), 202
 
 
 @app.errorhandler(PermissionError)
