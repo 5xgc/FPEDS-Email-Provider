@@ -2,7 +2,7 @@ services:
   - type: web
     name: fpeds-mail
     runtime: python
-    buildCommand: pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build && test -f artifacts/fpeds/dist/public/index.html
+    buildCommand: pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build && test -f dist/public/index.html
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/healthz
     envVars:
@@ -14,16 +14,12 @@ services:
         value: production
       - key: SQLITE_PATH
         value: /var/data/fpeds.sqlite3
-      - key: SMTP_HOST
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USERNAME
+      - key: BREVO_SENDER_EMAIL
         sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_USE_TLS
-        value: "true"
+      - key: BREVO_SENDER_NAME
+        value: FPEDS
       - key: INBOUND_WEBHOOK_SECRET
         sync: false
       - key: GROQ_API_KEY

@@ -675,7 +675,7 @@ export const getSendMessageUrl = () => {
 }
 
 /**
- * @summary Send an encrypted message through the server's SMTP relay
+ * @summary Send a message through the Brevo transactional email API
  */
 export const sendMessage = async (sendMessageInput: SendMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<Message> => {
 
@@ -724,7 +724,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SendMessageMutationError = ErrorType<void>
 
     /**
- * @summary Send an encrypted message through the server's SMTP relay
+ * @summary Send a message through the Brevo transactional email API
  */
 export const useSendMessage = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendMessage>>, TError,{data: BodyType<SendMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

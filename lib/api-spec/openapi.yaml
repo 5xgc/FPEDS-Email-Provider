@@ -155,7 +155,7 @@ paths:
     post:
       operationId: sendMessage
       tags: [mailbox]
-      summary: Send an encrypted message through the server's SMTP relay
+      summary: Send a message through the Brevo transactional email API
       requestBody:
         required: true
         content:

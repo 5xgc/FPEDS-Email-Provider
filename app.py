@@ -1,8 +1,7 @@
 """Self-hosted FPEDS webmail service.
 
-The app deliberately uses only Flask, SQLite, and Python's standard-library
-email/SMTP modules for mail transport. Groq is the only optional third-party
-API retained for spam scoring.
+The app uses Flask, SQLite, and Brevo's HTTP API for mail transport. Groq is
+the only optional third-party API retained for spam scoring.
 """
 
 from __future__ import annotations
@@ -13,11 +12,9 @@ import html
 import os
 import re
 import secrets
-import smtplib
 import sqlite3
 from datetime import datetime, timezone
-from email.message import EmailMessage
-from email.utils import formataddr, parseaddr
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
@@ -28,7 +25,14 @@ from flask import Flask, jsonify, request, send_from_directory, session
 
 
 ROOT = Path(__file__).resolve().parent
-STATIC_DIR = ROOT / "artifacts" / "fpeds" / "dist" / "public"
+STATIC_DIR_CANDIDATES = (
+    ROOT / "dist" / "public",
+    ROOT / "artifacts" / "fpeds" / "dist" / "public",
+)
+STATIC_DIR = next(
+    (candidate for candidate in STATIC_DIR_CANDIDATES if candidate.exists()),
+    STATIC_DIR_CANDIDATES[0],
+)
 DATABASE_PATH = Path(os.environ.get("SQLITE_PATH", str(ROOT / "data" / "fpeds.sqlite3")))
 MAIL_DOMAIN = (
     os.environ.get("FPEDS_MAIL_DOMAIN")
@@ -316,6 +320,10 @@ def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str
         or payload.get("body")
         or payload.get("body_text")
         or payload.get("plain")
+        or payload.get("textContent")
+        or payload.get("ExtractedMarkdownMessage")
+        or payload.get("TextBody")
+        or payload.get("RawTextBody")
     )
     if not body:
         body = html_to_text(extract_first(payload.get("html") or payload.get("body_html")))
@@ -366,43 +374,63 @@ def store_inbound(sender: str, recipient: str, subject: str, body: str) -> bool:
     return True
 
 
-def send_smtp_message(user: sqlite3.Row, recipient: str, subject: str, body: str) -> None:
-    host = os.environ.get("SMTP_HOST", "").strip()
-    try:
-        port = int(os.environ.get("SMTP_PORT", "587"))
-    except ValueError as exc:
-        raise RuntimeError("SMTP_PORT must be a number such as 587 or 465.") from exc
-    username = os.environ.get("SMTP_USERNAME", "").strip()
-    password = os.environ.get("SMTP_PASSWORD", "")
-    if not host:
-        raise RuntimeError(
-            "SMTP is not configured. Add SMTP_HOST, SMTP_PORT, SMTP_USERNAME, and SMTP_PASSWORD in Render."
+class MailConfigurationError(RuntimeError):
+    """The service is missing a required Brevo setting."""
+
+
+class BrevoDeliveryError(RuntimeError):
+    """Brevo rejected or could not accept an outbound message."""
+
+
+def send_brevo_message(
+    user: sqlite3.Row, recipient: str, subject: str, body: str
+) -> None:
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if not api_key:
+        raise MailConfigurationError(
+            "Brevo is not configured. Add BREVO_API_KEY in Render."
         )
-    if username and not password:
-        raise RuntimeError("SMTP_PASSWORD is missing for the configured SMTP_USERNAME.")
-    sender = os.environ.get("SMTP_FROM", "").strip() or user["email"]
 
-    message = EmailMessage()
-    message["From"] = formataddr(("FPEDS", sender))
-    message["To"] = recipient
-    message["Subject"] = subject
-    message.set_content(body)
-
-    if port == 465:
-        with smtplib.SMTP_SSL(host, port, timeout=20) as smtp:
-            if username:
-                smtp.login(username, password)
-            smtp.send_message(message)
-        return
-
-    with smtplib.SMTP(host, port, timeout=20) as smtp:
-        smtp.ehlo()
-        if os.environ.get("SMTP_USE_TLS", "true").lower() not in {"0", "false", "no"}:
-            smtp.starttls()
-            smtp.ehlo()
-        if username:
-            smtp.login(username, password)
-        smtp.send_message(message)
+    sender_email = (
+        os.environ.get("BREVO_SENDER_EMAIL", "").strip() or user["email"]
+    )
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "FPEDS").strip() or "FPEDS"
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": recipient}],
+        "subject": subject,
+        "textContent": body,
+    }
+    request = urlrequest.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=25) as response:
+            if response.status < 200 or response.status >= 300:
+                raise BrevoDeliveryError("Brevo did not accept the message.")
+    except urlerror.HTTPError as exc:
+        if exc.code in {401, 403}:
+            raise BrevoDeliveryError(
+                "Brevo rejected the API key. Check BREVO_API_KEY in Render."
+            ) from exc
+        if 400 <= exc.code < 500:
+            raise BrevoDeliveryError(
+                "Brevo rejected the message. Verify the sender domain and recipient."
+            ) from exc
+        raise BrevoDeliveryError(
+            "Brevo could not deliver the message right now."
+        ) from exc
+    except (urlerror.URLError, TimeoutError, OSError) as exc:
+        raise BrevoDeliveryError(
+            "Brevo could not be reached. Check the Render service network and try again."
+        ) from exc
 
 
 def handle_send():
@@ -419,24 +447,12 @@ def handle_send():
     if not subject or len(subject) > 200 or not body or len(body) > 100_000:
         return error_response("Subject and message are required.", 400)
     try:
-        send_smtp_message(user, recipient, subject, body)
-    except RuntimeError as exc:
+        send_brevo_message(user, recipient, subject, body)
+    except MailConfigurationError as exc:
         return error_response(str(exc), 503)
-    except smtplib.SMTPAuthenticationError:
-        app.logger.exception("SMTP authentication failed")
-        return error_response(
-            "SMTP authentication failed. Check SMTP_USERNAME and SMTP_PASSWORD in Render.",
-            502,
-        )
-    except (smtplib.SMTPConnectError, TimeoutError, OSError):
-        app.logger.exception("SMTP connection failed")
-        return error_response(
-            "The SMTP server could not be reached. Check SMTP_HOST, SMTP_PORT, and SMTP_USE_TLS in Render.",
-            502,
-        )
-    except smtplib.SMTPException:
-        app.logger.exception("SMTP delivery failed")
-        return error_response("The SMTP relay rejected the message. Check its sender and relay permissions.", 502)
+    except BrevoDeliveryError as exc:
+        app.logger.exception("Brevo delivery failed")
+        return error_response(str(exc), 502)
 
     message = {
         "id": new_id(),
@@ -473,7 +489,14 @@ def ensure_database() -> None:
 
 @app.get("/api/healthz")
 def health():
-    return jsonify({"status": "ok", "mailDomain": MAIL_DOMAIN})
+    return jsonify(
+        {
+            "status": "ok",
+            "mailDomain": MAIL_DOMAIN,
+            "mailProvider": "brevo",
+            "brevoConfigured": bool(os.environ.get("BREVO_API_KEY", "").strip()),
+        }
+    )
 
 
 @app.post("/api/auth/signup")
@@ -844,7 +867,10 @@ def create_subscription():
 def inbound_webhook():
     configured_secret = os.environ.get("INBOUND_WEBHOOK_SECRET", "")
     if configured_secret:
-        supplied_secret = request.headers.get("X-Webhook-Secret", "")
+        supplied_secret = (
+            request.headers.get("X-Webhook-Secret", "")
+            or request.args.get("secret", "")
+        )
         if not hmac.compare_digest(supplied_secret, configured_secret):
             return error_response("Invalid webhook secret.", 401)
     payload = request.get_json(silent=True)
