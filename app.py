@@ -410,6 +410,7 @@ def send_brevo_message(
     sender_name = os.environ.get("BREVO_SENDER_NAME", "FPEDS").strip() or "FPEDS"
     payload = {
         "sender": {"name": sender_name, "email": sender_email},
+        "replyTo": {"name": user["username"], "email": user["email"]},
         "to": [{"email": recipient}],
         "subject": subject,
         "textContent": body,
@@ -502,12 +503,21 @@ def ensure_database() -> None:
 
 @app.get("/api/healthz")
 def health():
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
+    sender_domain = sender_email.rsplit("@", 1)[-1].lower() if "@" in sender_email else ""
     return jsonify(
         {
             "status": "ok",
             "mailDomain": MAIL_DOMAIN,
             "mailProvider": "brevo",
             "brevoConfigured": bool(os.environ.get("BREVO_API_KEY", "").strip()),
+            "brevoSenderDomain": sender_domain or None,
+            "brevoInboundSenderDomainConflict": bool(
+                sender_domain and sender_domain == MAIL_DOMAIN
+            ),
+            "inboundWebhookConfigured": bool(
+                os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
+            ),
         }
     )
 

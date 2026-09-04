@@ -93,12 +93,13 @@ Verify `fpeds.2bd.net` as a Brevo sending domain, create a Brevo API key, and se
 
 The app does not run an IMAP server. With the current DNS records, incoming delivery is handled directly by Brevo Inbound Parsing:
 
-1. Verify `fpeds.2bd.net` in Brevo and create an inbound webhook with event `inboundEmailProcessed` and domain `fpeds.2bd.net`.
+1. Keep `fpeds.2bd.net` as the Brevo receiving domain and create an inbound webhook with event `inboundEmailProcessed` and domain `fpeds.2bd.net`.
 2. Set its webhook URL to
-   `https://YOUR-SERVICE.onrender.com/webhook/inbound?secret=<INBOUND_WEBHOOK_SECRET>` when `INBOUND_WEBHOOK_SECRET` is set.
+   `https://fpeds.onrender.com/webhook/inbound?secret=<INBOUND_WEBHOOK_SECRET>` when `INBOUND_WEBHOOK_SECRET` is set.
 3. Keep these MX records on `fpeds.2bd.net`: priority 10 `inbound1.sendinblue.com.` and priority 20 `inbound2.sendinblue.com.`. If Gmail reports `550 5.1.2 Recipient address rejected`, Brevo is receiving the domain but the receiving domain/webhook is not enabled or verified in Brevo yet.
-4. Brevo posts a JSON payload with an `items` array. The app extracts the sender, recipient, subject, and parsed message body, then stores it in the matching FPEDS mailbox.
-5. Create an FPEDS account for each username before sending mail to `<username>@FPEDS_MAIL_DOMAIN`; unknown usernames are intentionally ignored.
+4. Brevo requires the sending domain and receiving domain to be different. Verify a separate sending subdomain such as `send.fpeds.2bd.net`, set Render's `BREVO_SENDER_EMAIL` to an address on that subdomain such as `noreply@send.fpeds.2bd.net`, and keep `fpeds.2bd.net` as the receiving domain.
+5. Brevo posts a JSON payload with an `items` array. The app extracts the sender, recipient, subject, and parsed message body, then stores it in the matching FPEDS mailbox.
+6. Create an FPEDS account for each username before sending mail to `<username>@FPEDS_MAIL_DOMAIN`; unknown usernames are intentionally ignored.
 
 The included `cloudflare-email-worker.js` is an alternative adapter only. Do not use it at the same time as Brevo inbound MX records: choose either Brevo inbound parsing or Cloudflare Email Routing, and configure the matching MX records.
 
@@ -107,6 +108,13 @@ The inbound endpoint is `POST /webhook/inbound` and requires JSON plus the
 A deployed service must be public so Brevo can reach it. Test the endpoint only after the Render
 deploy is live by sending a message to an existing FPEDS mailbox and checking that it appears in
 Inbox or Spam.
+
+Outgoing messages set `Reply-To` to the signed-in user's FPEDS address, even when
+`BREVO_SENDER_EMAIL` is a shared verified sender.
+
+`GET /api/healthz` reports `brevoInboundSenderDomainConflict: true` when the configured
+Brevo sender uses the same domain as the FPEDS receiving domain. That configuration must be
+changed in Render before inbound replies can work.
 
 ## Pointers
 
