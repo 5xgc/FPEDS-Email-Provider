@@ -1,0 +1,50 @@
+2026-09-04T21:49:20.731689743Z Collecting gunicorn==23.0.0 (from -r requirements.txt (line 2))
+2026-09-04T21:49:20.732675294Z   Using cached gunicorn-23.0.0-py3-none-any.whl.metadata (4.4 kB)
+2026-09-04T21:49:20.74973777Z Collecting blinker>=1.9.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.75070716Z   Using cached blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+2026-09-04T21:49:20.771358006Z Collecting click>=8.1.3 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.772350428Z   Using cached click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-09-04T21:49:20.788287999Z Collecting itsdangerous>=2.2.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.789228014Z   Using cached itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+2026-09-04T21:49:20.808665018Z Collecting jinja2>=3.1.2 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.809614228Z   Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2026-09-04T21:49:20.854680754Z Collecting markupsafe>=2.1.1 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.85574225Z   Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2026-09-04T21:49:20.881124975Z Collecting werkzeug>=3.1.0 (from Flask==3.1.2->-r requirements.txt (line 1))
+2026-09-04T21:49:20.882092733Z   Using cached werkzeug-3.1.8-py3-none-any.whl.metadata (4.0 kB)
+2026-09-04T21:49:20.902876949Z Collecting packaging (from gunicorn==23.0.0->-r requirements.txt (line 2))
+2026-09-04T21:49:20.903819485Z   Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+2026-09-04T21:49:20.909131734Z Using cached flask-3.1.2-py3-none-any.whl (103 kB)
+2026-09-04T21:49:20.910122158Z Using cached gunicorn-23.0.0-py3-none-any.whl (85 kB)
+2026-09-04T21:49:20.911039088Z Using cached blinker-1.9.0-py3-none-any.whl (8.5 kB)
+2026-09-04T21:49:20.91188635Z Using cached click-8.5.0-py3-none-any.whl (125 kB)
+2026-09-04T21:49:20.912828419Z Using cached itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+2026-09-04T21:49:20.913678749Z Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+2026-09-04T21:49:20.91462532Z Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (23 kB)
+2026-09-04T21:49:20.915509266Z Using cached werkzeug-3.1.8-py3-none-any.whl (226 kB)
+2026-09-04T21:49:20.916452206Z Using cached packaging-26.3-py3-none-any.whl (129 kB)
+2026-09-04T21:49:20.933089746Z Installing collected packages: packaging, markupsafe, itsdangerous, click, blinker, werkzeug, jinja2, gunicorn, Flask
+2026-09-04T21:49:21.41671025Z 
+2026-09-04T21:49:21.418032616Z Successfully installed Flask-3.1.2 blinker-1.9.0 click-8.5.0 gunicorn-23.0.0 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.3 packaging-26.3 werkzeug-3.1.8
+2026-09-04T21:49:21.421308768Z 
+2026-09-04T21:49:21.421312916Z [notice] A new release of pip is available: 25.3 -> 26.2.1
+2026-09-04T21:49:21.421315112Z [notice] To update, run: pip install --upgrade pip
+2026-09-04T21:49:21.542580569Z ==> Using Node.js version 24.14.1 (default)
+2026-09-04T21:49:21.542586474Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-09-04T21:49:24.17899965Z 
+2026-09-04T21:49:24.179008327Z > @workspace/fpeds@0.0.0 build /opt/render/project/src/artifacts/fpeds
+2026-09-04T21:49:24.179010779Z > vite build --config vite.config.ts
+2026-09-04T21:49:24.179011954Z 
+2026-09-04T21:49:24.418541085Z vite v7.3.6 building client environment for production...
+2026-09-04T21:49:24.47563525Z transforming...
+2026-09-04T21:49:24.712212674Z src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-09-04T21:49:26.330642378Z ✓ 1782 modules transformed.
+2026-09-04T21:49:26.513872071Z rendering chunks...
+2026-09-04T21:49:26.521434867Z computing gzip size...
+2026-09-04T21:49:26.533341695Z ../../dist/public/index.html                                 1.49 kB │ gzip:   0.58 kB
+2026-09-04T21:49:26.533367182Z ../../dist/public/assets/image_1788396108244-Cw5hm-5-.png   62.94 kB
+2026-09-04T21:49:26.533399934Z ../../dist/public/assets/index-TpMErxVC.css                105.14 kB │ gzip:  17.36 kB
+2026-09-04T21:49:26.533445238Z ../../dist/public/assets/index-D_UuOyME.js                 390.86 kB │ gzip: 122.64 kB
+2026-09-04T21:49:26.533659647Z ✓ built in 2.09s
+2026-09-04T21:49:26.618043249Z ==> Build failed 😞
+2026-09-04T21:49:26.618057207Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys

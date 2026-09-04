@@ -5,9 +5,10 @@ FPEDS is a self-hosted email workspace for `fpeds.2bd.net` with access-key accou
 ## Run & Operate
 
 - `python app.py` — run the Flask webmail service locally
-- `gunicorn app:app --bind 0.0.0.0:$PORT` — run the production server on Render
-- Render build command: `pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build`
-- Render start command: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
+- `python -m gunicorn app:app --bind 0.0.0.0:$PORT` — run the production server on Render
+- Render root directory: repository root (`.`)
+- Render build command: `python -m pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build`
+- Render start command: `python -m gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
