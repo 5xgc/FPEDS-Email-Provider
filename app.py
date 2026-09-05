@@ -568,6 +568,9 @@ def health():
                 os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
             ),
             "resendConfigured": bool(os.environ.get("RESEND_API_KEY", "").strip()),
+            "resendWebhookSecretConfigured": bool(
+                os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
+            ),
         }
     )
 
@@ -959,10 +962,10 @@ def inbound_webhook():
 @app.post("/webhook/resend")
 @app.post("/api/webhook/resend")
 def resend_webhook():
-    configured_secret = (
-        os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
-        or os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
-    )
+    # Keep the legacy Brevo/Cloudflare webhook secret isolated. Render may
+    # still have INBOUND_WEBHOOK_SECRET configured, but Resend should not
+    # inherit it unless RESEND_WEBHOOK_SECRET is explicitly set.
+    configured_secret = os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
     if configured_secret:
         supplied_secret = (
             request.headers.get("X-Webhook-Secret", "")
