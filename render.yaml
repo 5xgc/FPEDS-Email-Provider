@@ -10,7 +10,7 @@ services:
       - key: SESSION_SECRET
         sync: false
       - key: FPEDS_MAIL_DOMAIN
-        value: fpeds.2bd.net
+        value: fraud.jo3.org
       - key: FLASK_ENV
         value: production
       - key: SQLITE_PATH
@@ -22,6 +22,10 @@ services:
       - key: BREVO_SENDER_NAME
         value: FPEDS
       - key: INBOUND_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
         sync: false
       - key: GROQ_API_KEY
         sync: false

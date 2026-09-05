@@ -44,7 +44,7 @@ function PageMetadata() {
     const title = page === "/inbox" ? "Inbox — FPEDS Mail" : page === "/starred" ? "Starred — FPEDS Mail" : page === "/sent" ? "Sent — FPEDS Mail" : page === "/drafts" ? "Drafts — FPEDS Mail" : page === "/spam" ? "Spam — FPEDS Mail" : page.startsWith("/folder/") ? `${decodeURIComponent(page.split("/")[2] ?? "Folder")} — FPEDS Mail` : page === "/compose" ? "Compose — FPEDS Mail" : page === "/settings" ? "Settings — FPEDS Mail" : "FPEDS Mail — Private email, without the noise";
     document.title = title;
     const description = document.querySelector('meta[name="description"]');
-     description?.setAttribute("content", "FPEDS is a self-hosted private email workspace for fpeds.2bd.net. No tracking, no behavioral profiling, and local mailbox storage.");
+     description?.setAttribute("content", "FPEDS is a self-hosted private email workspace for fraud.jo3.org. No tracking, no behavioral profiling, and local mailbox storage.");
   }, [location]);
   return null;
 }

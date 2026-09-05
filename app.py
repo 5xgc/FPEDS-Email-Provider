@@ -18,6 +18,7 @@ from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
+from urllib.parse import quote
 from urllib import request as urlrequest
 import json
 
@@ -37,7 +38,7 @@ DATABASE_PATH = Path(os.environ.get("SQLITE_PATH", str(ROOT / "data" / "fpeds.sq
 MAIL_DOMAIN = (
     os.environ.get("FPEDS_MAIL_DOMAIN")
     or os.environ.get("MAIL_DOMAIN")
-    or "fpeds.2bd.net"
+    or "fraud.jo3.org"
 ).strip().lower()
 if not re.fullmatch(r"[a-z0-9.-]+", MAIL_DOMAIN):
     raise RuntimeError("FPEDS_MAIL_DOMAIN must be a valid domain name.")
@@ -131,6 +132,15 @@ def init_db() -> None:
             );
             """
         )
+        # Keep existing accounts aligned when the mailbox domain is changed
+        # from the original FPEDS domain to the configured receiving domain.
+        for row in connection.execute("SELECT id, username, email FROM users").fetchall():
+            expected_email = mailbox_address(row["username"])
+            if row["email"] != expected_email:
+                connection.execute(
+                    "UPDATE users SET email = ?, updated_at = ? WHERE id = ?",
+                    (expected_email, utc_now(), row["id"]),
+                )
 
 
 def new_id() -> str:
@@ -320,6 +330,7 @@ def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str
         or payload.get("to")
         or payload.get("To")
         or payload.get("Recipients")
+        or payload.get("received_for")
         or payload.get("delivered_to")
         or payload.get("envelope", {}).get("to")
     )
@@ -393,6 +404,44 @@ class MailConfigurationError(RuntimeError):
 
 class BrevoDeliveryError(RuntimeError):
     """Brevo rejected or could not accept an outbound message."""
+
+
+class ResendReceivingError(RuntimeError):
+    """Resend could not return the content of an inbound email."""
+
+
+def retrieve_resend_email(email_id: str) -> dict[str, Any]:
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    if not api_key:
+        raise ResendReceivingError(
+            "Resend receiving is not configured. Add RESEND_API_KEY in Render."
+        )
+    request = urlrequest.Request(
+        f"https://api.resend.com/emails/receiving/{quote(email_id, safe='')}",
+        headers={
+            "accept": "application/json",
+            "authorization": f"Bearer {api_key}",
+        },
+        method="GET",
+    )
+    try:
+        with urlrequest.urlopen(request, timeout=25) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urlerror.HTTPError as exc:
+        if exc.code in {401, 403}:
+            raise ResendReceivingError(
+                "Resend rejected the API key. Check RESEND_API_KEY in Render."
+            ) from exc
+        raise ResendReceivingError(
+            "Resend could not return the received email."
+        ) from exc
+    except (urlerror.URLError, TimeoutError, OSError, ValueError) as exc:
+        raise ResendReceivingError(
+            "Resend could not be reached. Check the Render service network."
+        ) from exc
+    if not isinstance(result, dict):
+        raise ResendReceivingError("Resend returned an invalid received-email response.")
+    return result
 
 
 def send_brevo_message(
@@ -518,6 +567,7 @@ def health():
             "inboundWebhookConfigured": bool(
                 os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
             ),
+            "resendConfigured": bool(os.environ.get("RESEND_API_KEY", "").strip()),
         }
     )
 
@@ -902,6 +952,56 @@ def inbound_webhook():
     sender, recipient, subject, body = extract_inbound_payload(payload)
     if not sender or not recipient or not subject or not body:
         return error_response("Inbound payload must include sender, recipient, subject, and body/text.", 400)
+    stored = store_inbound(sender, recipient, subject, body)
+    return jsonify({"accepted": True, "stored": stored}), 202
+
+
+@app.post("/webhook/resend")
+@app.post("/api/webhook/resend")
+def resend_webhook():
+    configured_secret = (
+        os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
+        or os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
+    )
+    if configured_secret:
+        supplied_secret = (
+            request.headers.get("X-Webhook-Secret", "")
+            or request.args.get("secret", "")
+        )
+        if not hmac.compare_digest(supplied_secret, configured_secret):
+            return error_response("Invalid webhook secret.", 401)
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("Expected a JSON object.", 400)
+    if payload.get("type") != "email.received":
+        return jsonify({"accepted": True, "ignored": True}), 202
+
+    event = payload.get("data")
+    if not isinstance(event, dict):
+        return error_response("Resend webhook is missing its data object.", 400)
+    email_id = str(event.get("email_id", "")).strip()
+    if not email_id:
+        return error_response("Resend webhook is missing email_id.", 400)
+
+    try:
+        received = retrieve_resend_email(email_id)
+    except ResendReceivingError as exc:
+        app.logger.warning("Resend inbound retrieval failed: %s", exc)
+        return error_response(str(exc), 502)
+
+    sender, recipient, subject, body = extract_inbound_payload(received)
+    if not recipient:
+        recipient = extract_first(event.get("received_for") or event.get("to")).lower()
+    if not subject:
+        subject = extract_first(event.get("subject"))
+    if not sender:
+        sender = extract_first(event.get("from"))
+    if not sender or not recipient or not subject or not body:
+        return error_response(
+            "Resend received email is missing sender, recipient, subject, or body.",
+            400,
+        )
     stored = store_inbound(sender, recipient, subject, body)
     return jsonify({"accepted": True, "stored": stored}), 202
 

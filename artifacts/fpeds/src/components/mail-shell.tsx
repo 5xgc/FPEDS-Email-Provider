@@ -20,6 +20,9 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   const signOut = useSignOut();
   const summary = summaryQuery.data;
   const folders = foldersQuery.data ?? [];
+  const username = userQuery.data?.username ?? 'name';
+  const sendingAddress = `${username}@fpeds.2bd.net`;
+  const receivingAddress = userQuery.data?.email ?? `${username}@fraud.jo3.org`;
   const close = () => setOpen(false);
   const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() }); setLocation('/'); } });
   const nav = [
@@ -40,7 +43,10 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           <LogoMark /><span className="text-[15px] font-extrabold tracking-[.22em] text-foreground">FPEDS<span className="text-primary">.</span></span>
         </Link>
         <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 text-right sm:flex"><p className="text-sm font-semibold">{userQuery.data?.username ?? 'Private member'}</p><p className="font-mono text-[10px] text-muted-foreground">{userQuery.data?.email ?? 'fpeds.2bd.net'}</p></div>
+          <div className="hidden text-right sm:block">
+            <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
+          </div>
           <div className="grid h-9 w-9 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
           <button onClick={() => setOpen(!open)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
         </div>
@@ -51,7 +57,11 @@ export function MailShell({ children }: { children: React.ReactNode }) {
       </header>
       <div className="relative z-20 flex">
          <aside className={`fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] border-r hairline bg-[hsl(0_0%_5%/.98)] p-4 backdrop-blur-xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="mb-7 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
+           <div className="mb-5 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
+           <div className="mb-6 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
+             <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
+             <p className="mt-2 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
+           </div>
           <Link href="/compose" onClick={close} className="mb-7 flex h-12 items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-[0_8px_24px_hsl(0_72%_45%/.18)] transition-transform hover:-translate-y-0.5" data-testid="link-compose"><PenLine className="h-4 w-4" /> Compose</Link>
           <nav className="space-y-1" aria-label="Mailbox">
             <p className="mb-3 px-3 font-mono text-[9px] uppercase tracking-[.22em] text-muted-foreground">Mailbox</p>

@@ -1,6 +1,6 @@
 # FPEDS Mail
 
-FPEDS is a self-hosted email workspace for `fpeds.2bd.net` with access-key accounts, local SQLite mailbox storage, folders, subscriptions, Brevo API sending and inbound parsing, and optional AI-assisted spam filtering.
+FPEDS is a self-hosted email workspace with Brevo API sending, Resend inbound receiving for `fraud.jo3.org`, access-key accounts, local SQLite mailbox storage, folders, subscriptions, and optional AI-assisted spam filtering.
 
 ## Run & Operate
 
@@ -13,10 +13,11 @@ FPEDS is a self-hosted email workspace for `fpeds.2bd.net` with access-key accou
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `SESSION_SECRET`, `BREVO_API_KEY`, and `BREVO_SENDER_EMAIL`
-- Optional env: `FPEDS_MAIL_DOMAIN` — mailbox domain; defaults to `fpeds.2bd.net`
+- Required env: `SESSION_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and `RESEND_API_KEY`
+- Optional env: `FPEDS_MAIL_DOMAIN` — receiving/mailbox domain; defaults to `fraud.jo3.org`
 - Optional env: `SQLITE_PATH` — SQLite file path; set this to a Render persistent disk path
-- Optional env: `INBOUND_WEBHOOK_SECRET` — shared secret checked on Cloudflare inbound webhook requests
+- Optional env: `INBOUND_WEBHOOK_SECRET` — shared secret checked on the legacy inbound endpoint
+- Optional env: `RESEND_WEBHOOK_SECRET` — shared secret checked on Resend webhook requests
 - Optional env: `GROQ_API_KEY` — enables AI spam scoring; heuristic scoring works without it
 
 ## Stack
@@ -41,7 +42,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 - Focused access-key sign-in and generated-key account creation
 - Mailbox views for inbox, sent, drafts, spam, search, starring, and message reading
 - Compose/send through the Brevo transactional email API
-- Incoming mail through the Brevo Inbound Parsing webhook (with a Cloudflare Email Worker adapter also included)
+- Incoming mail through the Resend `email.received` webhook and Receiving API
 - Groq-powered spam scoring with blocked-message notifications
 - Custom folders, subscriptions, notification center, and profile settings
 - Annual limit of two username/email address changes
@@ -53,9 +54,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-- `SESSION_SECRET`, SMTP credentials, `INBOUND_WEBHOOK_SECRET`, and `GROQ_API_KEY` are environment secrets; do not put them in source control.
+- `SESSION_SECRET`, mail-provider credentials, webhook secrets, and `GROQ_API_KEY` are environment secrets; do not put them in source control.
 - Each account's mailbox is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
-- The inbound endpoint accepts both the normalized Cloudflare payload and Brevo's `{ "items": [...] }` payload with `From`, `Recipients`/`To`, `Subject`, and `ExtractedMarkdownMessage`.
+- Resend webhooks contain metadata only; the app retrieves the complete email body from Resend's Receiving API before storing it.
 - The inbound webhook only accepts recipients at `FPEDS_MAIL_DOMAIN` and silently ignores unknown usernames.
 - Render's SQLite path must be on a persistent disk if mailbox data should survive deploys or restarts.
 - The auth page is intentionally a single focused panel; do not reintroduce split-screen marketing copy without an explicit product decision.
@@ -91,30 +92,22 @@ Verify `fpeds.2bd.net` as a Brevo sending domain, create a Brevo API key, and se
 
 ### Incoming mail
 
-The app does not run an IMAP server. With the current DNS records, incoming delivery is handled directly by Brevo Inbound Parsing:
+The app does not run an IMAP server. Incoming delivery is handled by Resend Receiving:
 
-1. Keep `fpeds.2bd.net` as the Brevo receiving domain and create an inbound webhook with event `inboundEmailProcessed` and domain `fpeds.2bd.net`.
-2. Set its webhook URL to
-   `https://fpeds.onrender.com/webhook/inbound?secret=<INBOUND_WEBHOOK_SECRET>` when `INBOUND_WEBHOOK_SECRET` is set.
-3. Keep these MX records on `fpeds.2bd.net`: priority 10 `inbound1.sendinblue.com.` and priority 20 `inbound2.sendinblue.com.`. If Gmail reports `550 5.1.2 Recipient address rejected`, Brevo is receiving the domain but the receiving domain/webhook is not enabled or verified in Brevo yet.
-4. Brevo requires the sending domain and receiving domain to be different. Verify a separate sending subdomain such as `send.fpeds.2bd.net`, set Render's `BREVO_SENDER_EMAIL` to an address on that subdomain such as `noreply@send.fpeds.2bd.net`, and keep `fpeds.2bd.net` as the receiving domain.
-5. Brevo posts a JSON payload with an `items` array. The app extracts the sender, recipient, subject, and parsed message body, then stores it in the matching FPEDS mailbox.
-6. Create an FPEDS account for each username before sending mail to `<username>@FPEDS_MAIL_DOMAIN`; unknown usernames are intentionally ignored.
+1. Add and verify `fraud.jo3.org` in Resend Receiving.
+2. Replace the MX records for `fraud.jo3.org` with the MX record Resend provides. Do not leave the old Brevo inbound MX records on the receiving domain.
+3. Create a Resend receiving webhook for the `email.received` event pointing to
+   `https://fpeds.onrender.com/webhook/resend`. If `RESEND_WEBHOOK_SECRET` is set, use
+   `https://fpeds.onrender.com/webhook/resend?secret=<RESEND_WEBHOOK_SECRET>`.
+4. Add `RESEND_API_KEY` to the Render service's Environment page. Replit Secrets and Render environment variables are separate.
+5. Create an FPEDS account for each username before sending mail to `<username>@fraud.jo3.org`; unknown usernames are intentionally ignored.
 
-The included `cloudflare-email-worker.js` is an alternative adapter only. Do not use it at the same time as Brevo inbound MX records: choose either Brevo inbound parsing or Cloudflare Email Routing, and configure the matching MX records.
+Resend sends inbound metadata first. The app then retrieves the full message from
+`https://api.resend.com/emails/receiving/:email_id` and stores it in Inbox or Spam.
+The endpoint is `POST /webhook/resend`.
 
-The inbound endpoint is `POST /webhook/inbound` and requires JSON plus the
-`X-Webhook-Secret` header or `secret` query parameter when `INBOUND_WEBHOOK_SECRET` is set.
-A deployed service must be public so Brevo can reach it. Test the endpoint only after the Render
-deploy is live by sending a message to an existing FPEDS mailbox and checking that it appears in
-Inbox or Spam.
-
-Outgoing messages set `Reply-To` to the signed-in user's FPEDS address, even when
-`BREVO_SENDER_EMAIL` is a shared verified sender.
-
-`GET /api/healthz` reports `brevoInboundSenderDomainConflict: true` when the configured
-Brevo sender uses the same domain as the FPEDS receiving domain. That configuration must be
-changed in Render before inbound replies can work.
+Outgoing messages continue to use Brevo and set `Reply-To` to the signed-in user's
+`@fraud.jo3.org` receiving address.
 
 ## Pointers
 
