@@ -38,17 +38,17 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <div className="fixed inset-0 pointer-events-none opacity-40" style={{ background: 'linear-gradient(125deg, transparent 35%, hsl(0 72% 45% / .08), transparent 62%)' }} />
-      <header className="relative z-40 flex h-16 items-center justify-between border-b hairline px-4 sm:px-5 md:h-[72px] md:px-8">
-        <Link href="/inbox" onClick={close} className="flex items-center gap-3" data-testid="link-logo">
+      <header className="relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 border-b hairline px-4 sm:px-5 md:h-[72px] md:px-8">
+        <Link href="/inbox" onClick={close} className="flex min-w-0 shrink-0 items-center gap-3" data-testid="link-logo">
           <LogoMark /><span className="text-[15px] font-extrabold tracking-[.22em] text-foreground">FPEDS<span className="text-primary">.</span></span>
         </Link>
-        <div className="flex items-center gap-3">
-          <div className="hidden text-right sm:block">
-            <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
-            <p className="mt-1 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="hidden min-w-0 max-w-[430px] text-right sm:block">
+            <p className="truncate font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
+            <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
           </div>
-          <div className="grid h-9 w-9 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
-          <button onClick={() => setOpen(!open)} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
+          <button onClick={() => setOpen(!open)} className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
         </div>
          {open && <div className="absolute right-4 top-12 z-50 hidden w-48 rounded-xl border border-white/10 bg-[#121212]/95 p-2 shadow-2xl backdrop-blur-xl md:right-5 md:top-14 md:block">
           <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"><Settings className="h-4 w-4" /> Settings</Link>

@@ -41,10 +41,36 @@ function PageMetadata() {
   const [location] = useLocation();
   useEffect(() => {
     const page = location.split("?")[0];
-    const title = page === "/inbox" ? "Inbox — FPEDS Mail" : page === "/starred" ? "Starred — FPEDS Mail" : page === "/sent" ? "Sent — FPEDS Mail" : page === "/drafts" ? "Drafts — FPEDS Mail" : page === "/spam" ? "Spam — FPEDS Mail" : page.startsWith("/folder/") ? `${decodeURIComponent(page.split("/")[2] ?? "Folder")} — FPEDS Mail` : page === "/compose" ? "Compose — FPEDS Mail" : page === "/settings" ? "Settings — FPEDS Mail" : "FPEDS Mail — Private email, without the noise";
+    const pageInfo = page === "/inbox"
+      ? ["Inbox — FPEDS Mail", "Private inbox for focused, distraction-free email."]
+      : page === "/starred"
+        ? ["Starred messages — FPEDS Mail", "Your saved messages in the private FPEDS mailbox."]
+        : page === "/sent"
+          ? ["Sent mail — FPEDS Mail", "Review messages sent from your private FPEDS address."]
+          : page === "/drafts"
+            ? ["Drafts — FPEDS Mail", "Continue working on private email drafts."]
+            : page === "/spam"
+              ? ["Spam review — FPEDS Mail", "Review suspicious mail before it reaches your private inbox."]
+              : page.startsWith("/folder/")
+                ? [`${decodeURIComponent(page.split("/")[2] ?? "Folder")} — FPEDS Mail`, "A private mailbox folder for organized email."]
+                : page === "/compose"
+                  ? ["Compose email — FPEDS Mail", "Write and send private email without the noise."]
+                  : page === "/settings"
+                    ? ["Mailbox settings — FPEDS Mail", "Manage your private mailbox, folders, and notifications."]
+                    : ["FPEDS Mail — Private email", "A private email workspace with focused inboxes, access-key accounts, and no behavioral tracking."];
+    const [title, description] = pageInfo;
     document.title = title;
-    const description = document.querySelector('meta[name="description"]');
-     description?.setAttribute("content", "FPEDS is a self-hosted private email workspace for fpdf.2bd.net. No tracking, no behavioral profiling, and local mailbox storage.");
+    const canonical = `${window.location.origin}${page || "/"}`;
+    const setMeta = (selector: string, content: string) => {
+      document.querySelector(selector)?.setAttribute("content", content);
+    };
+    setMeta('meta[name="description"]', description);
+    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="og:description"]', description);
+    setMeta('meta[property="og:url"]', canonical);
+    setMeta('meta[name="twitter:title"]', title);
+    setMeta('meta[name="twitter:description"]', description);
+    document.querySelector('link[rel="canonical"]')?.setAttribute("href", canonical);
   }, [location]);
   return null;
 }
