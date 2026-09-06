@@ -101,7 +101,7 @@ The app does not run an IMAP server. Incoming delivery is handled by Mailgun Rou
 1. Add and verify `fpdf.2bd.net` in Mailgun.
 2. Set the domain's receiving MX records to the MX records Mailgun provides.
 3. Create a Mailgun route matching `.*@fpdf.2bd.net` with an action that posts to
-   `https://YOUR-RENDER-SERVICE.onrender.com/webhook/mailgun`.
+   `https://fpeds.onrender.com/webhook/mailgun`.
 4. Configure the route to post the full message and set the Mailgun signing key as
    `MAILGUN_SIGNING_KEY` in Render.
 5. Create an FPEDS account for each username before sending mail to
