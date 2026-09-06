@@ -1,7 +1,11 @@
 /*
- * Cloudflare Email Routing adapter.
+ * Legacy Cloudflare Email Routing adapter.
  *
- * Configure an Email Worker for the fpeds.2bd.net route and set:
+ * Production receiving now uses Mailgun Routes. Do not configure this worker
+ * for fpdf.2bd.net unless the receiving provider is intentionally changed.
+ *
+ * This file is retained only for reference; no Cloudflare worker is needed for
+ * the Mailgun receiving setup.
  *   INBOUND_URL = https://YOUR-RENDER-SERVICE.onrender.com/webhook/inbound
  *   WEBHOOK_SECRET = the same value as the Render INBOUND_WEBHOOK_SECRET
  *

@@ -3,14 +3,14 @@ services:
     name: fpeds-mail
     runtime: python
     rootDir: .
-    buildCommand: pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build
+    buildCommand: pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build && test -f dist/public/index.html
     startCommand: python -m gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     healthCheckPath: /api/healthz
     envVars:
       - key: SESSION_SECRET
         sync: false
       - key: FPEDS_MAIL_DOMAIN
-        value: fraud.jo3.org
+        value: fpdf.2bd.net
       - key: FLASK_ENV
         value: production
       - key: SQLITE_PATH
@@ -21,11 +21,9 @@ services:
         sync: false
       - key: BREVO_SENDER_NAME
         value: FPEDS
-      - key: INBOUND_WEBHOOK_SECRET
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: RESEND_WEBHOOK_SECRET
+      - key: MAILGUN_DOMAIN
+        value: fpdf.2bd.net
+      - key: MAILGUN_SIGNING_KEY
         sync: false
       - key: GROQ_API_KEY
         sync: false

@@ -1,7 +1,7 @@
 """Self-hosted FPEDS webmail service.
 
-The app uses Flask, SQLite, and Brevo's HTTP API for mail transport. Groq is
-the only optional third-party API retained for spam scoring.
+Brevo handles outbound transactional messages and Mailgun handles inbound
+message routing. Groq is optional for spam scoring.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
-from urllib.parse import quote
 from urllib import request as urlrequest
 import json
 
@@ -38,7 +37,7 @@ DATABASE_PATH = Path(os.environ.get("SQLITE_PATH", str(ROOT / "data" / "fpeds.sq
 MAIL_DOMAIN = (
     os.environ.get("FPEDS_MAIL_DOMAIN")
     or os.environ.get("MAIL_DOMAIN")
-    or "fraud.jo3.org"
+    or "fpdf.2bd.net"
 ).strip().lower()
 if not re.fullmatch(r"[a-z0-9.-]+", MAIL_DOMAIN):
     raise RuntimeError("FPEDS_MAIL_DOMAIN must be a valid domain name.")
@@ -312,16 +311,11 @@ def extract_first(value: Any) -> str:
 
 
 def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str]:
-    # Brevo sends { "items": [{ "From": ..., "Recipients": ..., ... }] },
-    # while the Cloudflare adapter sends normalized fields at the root.
-    item = payload.get("items")
-    if isinstance(item, list) and item and isinstance(item[0], dict):
-        payload = item[0]
-
     sender = extract_first(
         payload.get("sender")
         or payload.get("from")
         or payload.get("From")
+        or payload.get("Sender")
         or payload.get("source")
         or payload.get("envelope", {}).get("from")
     )
@@ -330,6 +324,7 @@ def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str
         or payload.get("to")
         or payload.get("To")
         or payload.get("Recipients")
+        or payload.get("recipient-override")
         or payload.get("received_for")
         or payload.get("delivered_to")
         or payload.get("envelope", {}).get("to")
@@ -344,6 +339,8 @@ def extract_inbound_payload(payload: dict[str, Any]) -> tuple[str, str, str, str
         or payload.get("body")
         or payload.get("body_text")
         or payload.get("plain")
+        or payload.get("body-plain")
+        or payload.get("stripped-text")
         or payload.get("textContent")
         or payload.get("ExtractedMarkdownMessage")
         or payload.get("TextBody")
@@ -399,49 +396,11 @@ def store_inbound(sender: str, recipient: str, subject: str, body: str) -> bool:
 
 
 class MailConfigurationError(RuntimeError):
-    """The service is missing a required Brevo setting."""
+    """The service is missing a required mail setting."""
 
 
 class BrevoDeliveryError(RuntimeError):
     """Brevo rejected or could not accept an outbound message."""
-
-
-class ResendReceivingError(RuntimeError):
-    """Resend could not return the content of an inbound email."""
-
-
-def retrieve_resend_email(email_id: str) -> dict[str, Any]:
-    api_key = os.environ.get("RESEND_API_KEY", "").strip()
-    if not api_key:
-        raise ResendReceivingError(
-            "Resend receiving is not configured. Add RESEND_API_KEY in Render."
-        )
-    request = urlrequest.Request(
-        f"https://api.resend.com/emails/receiving/{quote(email_id, safe='')}",
-        headers={
-            "accept": "application/json",
-            "authorization": f"Bearer {api_key}",
-        },
-        method="GET",
-    )
-    try:
-        with urlrequest.urlopen(request, timeout=25) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except urlerror.HTTPError as exc:
-        if exc.code in {401, 403}:
-            raise ResendReceivingError(
-                "Resend rejected the API key. Check RESEND_API_KEY in Render."
-            ) from exc
-        raise ResendReceivingError(
-            "Resend could not return the received email."
-        ) from exc
-    except (urlerror.URLError, TimeoutError, OSError, ValueError) as exc:
-        raise ResendReceivingError(
-            "Resend could not be reached. Check the Render service network."
-        ) from exc
-    if not isinstance(result, dict):
-        raise ResendReceivingError("Resend returned an invalid received-email response.")
-    return result
 
 
 def send_brevo_message(
@@ -494,6 +453,47 @@ def send_brevo_message(
         raise BrevoDeliveryError(
             "Brevo could not be reached. Check the Render service network and try again."
         ) from exc
+
+
+class MailgunReceivingError(RuntimeError):
+    """Mailgun rejected or could not parse an inbound message."""
+
+
+def verify_mailgun_signature(timestamp: str, token: str, signature: str) -> None:
+    signing_key = os.environ.get("MAILGUN_SIGNING_KEY", "").strip()
+    if not signing_key:
+        raise MailConfigurationError(
+            "Mailgun receiving is not configured. Add MAILGUN_SIGNING_KEY in Render."
+        )
+    if not timestamp or not token or not signature:
+        raise MailgunReceivingError("Mailgun webhook signature is missing.")
+    digest = hmac.new(
+        signing_key.encode("utf-8"),
+        f"{timestamp}{token}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(digest, signature):
+        raise MailgunReceivingError("Invalid Mailgun webhook signature.")
+
+
+def handle_mailgun_inbound(payload: dict[str, Any]) -> tuple[str, str, str, str]:
+    signature = payload.get("signature")
+    if isinstance(signature, dict):
+        timestamp = str(signature.get("timestamp", ""))
+        token = str(signature.get("token", ""))
+        digest = str(signature.get("signature", ""))
+    else:
+        timestamp = str(payload.get("timestamp", ""))
+        token = str(payload.get("token", ""))
+        digest = str(payload.get("signature", ""))
+    verify_mailgun_signature(timestamp, token, digest)
+
+    sender, recipient, subject, body = extract_inbound_payload(payload)
+    if not sender or not recipient or not subject or not body:
+        raise MailgunReceivingError(
+            "Mailgun payload must include sender, recipient, subject, and body-plain."
+        )
+    return sender, recipient, subject, body
 
 
 def handle_send():
@@ -559,17 +559,12 @@ def health():
             "status": "ok",
             "mailDomain": MAIL_DOMAIN,
             "mailProvider": "brevo",
+            "receivingProvider": "mailgun",
             "brevoConfigured": bool(os.environ.get("BREVO_API_KEY", "").strip()),
             "brevoSenderDomain": sender_domain or None,
-            "brevoInboundSenderDomainConflict": bool(
-                sender_domain and sender_domain == MAIL_DOMAIN
-            ),
-            "inboundWebhookConfigured": bool(
-                os.environ.get("INBOUND_WEBHOOK_SECRET", "").strip()
-            ),
-            "resendConfigured": bool(os.environ.get("RESEND_API_KEY", "").strip()),
-            "resendWebhookSecretConfigured": bool(
-                os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
+            "mailgunDomain": os.environ.get("MAILGUN_DOMAIN", MAIL_DOMAIN),
+            "mailgunReceivingConfigured": bool(
+                os.environ.get("MAILGUN_SIGNING_KEY", "").strip()
             ),
         }
     )
@@ -938,73 +933,22 @@ def create_subscription():
     return jsonify({"id": subscription[0], "email": email, "label": label, "active": True}), 201
 
 
+@app.post("/webhook/mailgun")
+@app.post("/api/webhook/mailgun")
 @app.post("/webhook/inbound")
 @app.post("/api/webhook/inbound")
-def inbound_webhook():
-    configured_secret = os.environ.get("INBOUND_WEBHOOK_SECRET", "")
-    if configured_secret:
-        supplied_secret = (
-            request.headers.get("X-Webhook-Secret", "")
-            or request.args.get("secret", "")
-        )
-        if not hmac.compare_digest(supplied_secret, configured_secret):
-            return error_response("Invalid webhook secret.", 401)
-    payload = request.get_json(silent=True)
+def mailgun_webhook():
+    payload = request.form.to_dict(flat=True)
+    if not payload:
+        payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
-        return error_response("Expected a JSON object.", 400)
-    sender, recipient, subject, body = extract_inbound_payload(payload)
-    if not sender or not recipient or not subject or not body:
-        return error_response("Inbound payload must include sender, recipient, subject, and body/text.", 400)
-    stored = store_inbound(sender, recipient, subject, body)
-    return jsonify({"accepted": True, "stored": stored}), 202
-
-
-@app.post("/webhook/resend")
-@app.post("/api/webhook/resend")
-def resend_webhook():
-    # Keep the legacy Brevo/Cloudflare webhook secret isolated. Render may
-    # still have INBOUND_WEBHOOK_SECRET configured, but Resend should not
-    # inherit it unless RESEND_WEBHOOK_SECRET is explicitly set.
-    configured_secret = os.environ.get("RESEND_WEBHOOK_SECRET", "").strip()
-    if configured_secret:
-        supplied_secret = (
-            request.headers.get("X-Webhook-Secret", "")
-            or request.args.get("secret", "")
-        )
-        if not hmac.compare_digest(supplied_secret, configured_secret):
-            return error_response("Invalid webhook secret.", 401)
-
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, dict):
-        return error_response("Expected a JSON object.", 400)
-    if payload.get("type") != "email.received":
-        return jsonify({"accepted": True, "ignored": True}), 202
-
-    event = payload.get("data")
-    if not isinstance(event, dict):
-        return error_response("Resend webhook is missing its data object.", 400)
-    email_id = str(event.get("email_id", "")).strip()
-    if not email_id:
-        return error_response("Resend webhook is missing email_id.", 400)
-
+        return error_response("Expected a Mailgun form or JSON payload.", 400)
     try:
-        received = retrieve_resend_email(email_id)
-    except ResendReceivingError as exc:
-        app.logger.warning("Resend inbound retrieval failed: %s", exc)
-        return error_response(str(exc), 502)
-
-    sender, recipient, subject, body = extract_inbound_payload(received)
-    if not recipient:
-        recipient = extract_first(event.get("received_for") or event.get("to")).lower()
-    if not subject:
-        subject = extract_first(event.get("subject"))
-    if not sender:
-        sender = extract_first(event.get("from"))
-    if not sender or not recipient or not subject or not body:
-        return error_response(
-            "Resend received email is missing sender, recipient, subject, or body.",
-            400,
-        )
+        sender, recipient, subject, body = handle_mailgun_inbound(payload)
+    except MailConfigurationError as exc:
+        return error_response(str(exc), 503)
+    except MailgunReceivingError as exc:
+        return error_response(str(exc), 401)
     stored = store_inbound(sender, recipient, subject, body)
     return jsonify({"accepted": True, "stored": stored}), 202
 
@@ -1017,7 +961,7 @@ def handle_permission_error(error: PermissionError):
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def frontend(path: str):
-    if path.startswith("api/") or path == "webhook/inbound":
+    if path.startswith("api/") or path in {"webhook/inbound", "webhook/mailgun"}:
         return error_response("Not found", 404)
     if STATIC_DIR.exists():
         requested = STATIC_DIR / path

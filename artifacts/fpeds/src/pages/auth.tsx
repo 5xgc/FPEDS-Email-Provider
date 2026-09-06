@@ -122,7 +122,7 @@ export default function AuthPage() {
                 data-testid="input-username"
               />
               <p className="mt-2 font-mono text-[10px] text-white/35">
-                Your mailbox will be <span className="text-white/65">{previewUsername(username)}@fraud.jo3.org</span>
+                Your mailbox will be <span className="text-white/65">{previewUsername(username)}@fpdf.2bd.net</span>
               </p>
             </label>
           )}
