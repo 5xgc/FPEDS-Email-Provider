@@ -74,7 +74,7 @@ Set these values in the Render service's Environment page:
 - `FPEDS_MAIL_DOMAIN`: the domain users will receive mail at, `fpdf.2bd.net`.
 - `SQLITE_PATH`: `/var/data/fpeds.sqlite3` when using the Render persistent disk.
 - `BREVO_API_KEY`: a Brevo API key with transactional sending enabled.
-- `BREVO_SENDER_EMAIL`: a sender address verified in Brevo for `fpdf.2bd.net`.
+- `BREVO_SENDER_EMAIL`: a sender address verified in Brevo for `fpdf.2bd.net`; the app will not fall back to an unverified mailbox address.
 - `BREVO_SENDER_NAME` (optional): the display name shown to recipients.
 - `MAILGUN_DOMAIN`: `fpdf.2bd.net`.
 - `MAILGUN_SIGNING_KEY`: the signing key shown in Mailgun's webhook settings.
@@ -88,7 +88,10 @@ to Replit does not add it to the Render web service; set `BREVO_API_KEY` and
 
 Verify `fpdf.2bd.net` as a Brevo sending domain, create a Brevo API key, and set
 `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in Render. The app calls Brevo's
-`/v3/smtp/email` endpoint with plain-text message content.
+`/v3/smtp/email` endpoint with plain-text message content. Provider rejection
+messages are returned to the compose screen so sender verification, API-key,
+account-credit, and recipient problems are actionable instead of appearing as a
+generic send failure.
 
 ### Incoming mail
 

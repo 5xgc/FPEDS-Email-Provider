@@ -403,6 +403,29 @@ class BrevoDeliveryError(RuntimeError):
     """Brevo rejected or could not accept an outbound message."""
 
 
+def brevo_provider_error(exc: urlerror.HTTPError) -> str:
+    """Return Brevo's safe error message without exposing request credentials."""
+    try:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        provider_error = json.loads(response_body)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        provider_error = {}
+    provider_message = (
+        provider_error.get("message")
+        if isinstance(provider_error, dict)
+        else None
+    )
+    provider_code = (
+        provider_error.get("code")
+        if isinstance(provider_error, dict)
+        else None
+    )
+    if provider_message:
+        suffix = f" ({provider_code})" if provider_code else ""
+        return f"Brevo rejected the message: {provider_message}{suffix}"
+    return "Brevo rejected the message. Verify the sender domain and recipient."
+
+
 def send_brevo_message(
     user: sqlite3.Row, recipient: str, subject: str, body: str
 ) -> None:
@@ -412,9 +435,11 @@ def send_brevo_message(
             "Brevo is not configured. Add BREVO_API_KEY in Render."
         )
 
-    sender_email = (
-        os.environ.get("BREVO_SENDER_EMAIL", "").strip() or user["email"]
-    )
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
+    if not sender_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", sender_email):
+        raise MailConfigurationError(
+            "Brevo is not configured with a verified sender. Add BREVO_SENDER_EMAIL in Render."
+        )
     sender_name = os.environ.get("BREVO_SENDER_NAME", "FPEDS").strip() or "FPEDS"
     payload = {
         "sender": {"name": sender_name, "email": sender_email},
@@ -440,12 +465,10 @@ def send_brevo_message(
     except urlerror.HTTPError as exc:
         if exc.code in {401, 403}:
             raise BrevoDeliveryError(
-                "Brevo rejected the API key. Check BREVO_API_KEY in Render."
+                brevo_provider_error(exc)
             ) from exc
         if 400 <= exc.code < 500:
-            raise BrevoDeliveryError(
-                "Brevo rejected the message. Verify the sender domain and recipient."
-            ) from exc
+            raise BrevoDeliveryError(brevo_provider_error(exc)) from exc
         raise BrevoDeliveryError(
             "Brevo could not deliver the message right now."
         ) from exc
