@@ -38,12 +38,12 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <div className="fixed inset-0 pointer-events-none opacity-40" style={{ background: 'linear-gradient(125deg, transparent 35%, hsl(0 72% 45% / .08), transparent 62%)' }} />
-      <header className="relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 border-b hairline px-4 sm:px-5 md:h-[72px] md:px-8">
+      <header className="relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-hidden border-b hairline px-4 sm:px-5 md:h-[72px] md:px-8">
         <Link href="/inbox" onClick={close} className="flex min-w-0 shrink-0 items-center gap-3" data-testid="link-logo">
           <LogoMark /><span className="text-[15px] font-extrabold tracking-[.22em] text-foreground">FPEDS<span className="text-primary">.</span></span>
         </Link>
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <div className="hidden min-w-0 max-w-[430px] text-right sm:block">
+          <div className="hidden min-w-0 max-w-[430px] text-right md:block">
             <p className="truncate font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
             <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
           </div>
@@ -55,8 +55,8 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /> Sign out</Button>
         </div>}
       </header>
-      <div className="relative z-20 flex">
-         <aside className={`fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] border-r hairline bg-[hsl(0_0%_5%/.98)] p-4 backdrop-blur-xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+       <div className="relative z-20 flex min-w-0">
+          <aside className={`fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] shrink-0 border-r hairline bg-[hsl(0_0%_5%/.98)] p-4 backdrop-blur-xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
            <div className="mb-5 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
            <div className="mb-6 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
              <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
@@ -76,7 +76,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
          {open && <button className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={close} aria-label="Close navigation" data-testid="button-overlay" />}
-         <main className="min-w-0 flex-1 pb-20 md:pb-0">{children}</main>
+          <main className="w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">{children}</main>
       </div>
        <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t hairline bg-[#0d0d0d]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Mobile mailbox">
          {[

@@ -120,8 +120,25 @@ export default function InboxPage({ folder }: { folder: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
-  const messagesQuery = useListMessages({ folder, q: search || undefined });
-  const summaryQuery = useGetMailboxSummary();
+  const messagesQuery = useListMessages(
+    { folder, q: search || undefined },
+    {
+      query: {
+        queryKey: getListMessagesQueryKey({ folder, q: search || undefined }),
+        refetchInterval: 5000,
+        refetchIntervalInBackground: true,
+        refetchOnWindowFocus: true,
+      },
+    },
+  );
+  const summaryQuery = useGetMailboxSummary({
+    query: {
+      queryKey: getGetMailboxSummaryQueryKey(),
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    },
+  });
   const messageQuery = useGetMessage(selectedId ?? '', {
     query: {
       enabled: Boolean(selectedId),

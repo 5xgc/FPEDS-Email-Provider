@@ -145,6 +145,7 @@
     background-image: radial-gradient(ellipse at 80% -20%, hsl(0 72% 35% / .16), transparent 48%), radial-gradient(ellipse at 0% 100%, hsl(0 0% 22% / .16), transparent 48%);
   }
   button, input, textarea { font: inherit; }
+  #root { min-height: 100dvh; min-width: 0; overflow-x: clip; }
   ::selection { background: hsl(0 72% 55% / .3); color: hsl(0 0% 100%); }
 }
 
