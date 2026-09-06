@@ -17,12 +17,14 @@ services:
         value: /var/data/fpeds.sqlite3
       - key: BREVO_API_KEY
         sync: false
-      - key: BREVO_SENDER_EMAIL
-        sync: false
+      - key: BREVO_SENDER_DOMAIN
+        value: fpeds.2bd.net
       - key: BREVO_SENDER_NAME
         value: FPEDS
       - key: MAILGUN_DOMAIN
         value: fpdf.2bd.net
+      - key: MAILGUN_API_KEY
+        sync: false
       - key: MAILGUN_SIGNING_KEY
         sync: false
       - key: GROQ_API_KEY

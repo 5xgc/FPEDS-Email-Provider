@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 from email.utils import parseaddr
 from pathlib import Path
@@ -41,6 +42,11 @@ MAIL_DOMAIN = (
 ).strip().lower()
 if not re.fullmatch(r"[a-z0-9.-]+", MAIL_DOMAIN):
     raise RuntimeError("FPEDS_MAIL_DOMAIN must be a valid domain name.")
+BREVO_SENDER_DOMAIN = (
+    os.environ.get("BREVO_SENDER_DOMAIN") or "fpeds.2bd.net"
+).strip().lower()
+if not re.fullmatch(r"[a-z0-9.-]+", BREVO_SENDER_DOMAIN):
+    raise RuntimeError("BREVO_SENDER_DOMAIN must be a valid domain name.")
 
 app = Flask(
     __name__,
@@ -426,20 +432,48 @@ def brevo_provider_error(exc: urlerror.HTTPError) -> str:
     return "Brevo rejected the message. Verify the sender domain and recipient."
 
 
+def send_brevo_through_replit_connector(payload: dict[str, Any]) -> bool | None:
+    """Use the attached Brevo connector when running inside Replit.
+
+    Render does not provide Replit connector runtime variables, so returning
+    None lets the caller use the deployment's BREVO_API_KEY fallback there.
+    """
+    if not os.environ.get("REPLIT_CONNECTORS_HOSTNAME"):
+        return None
+    try:
+        completed = subprocess.run(
+            ["node", str(ROOT / "scripts" / "brevo-send.mjs")],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        result = json.loads(completed.stdout or "{}")
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise BrevoDeliveryError(
+            "The connected Brevo service could not be reached from Replit."
+        ) from exc
+    if completed.returncode != 0 or not isinstance(result, dict):
+        raise BrevoDeliveryError(
+            "The connected Brevo service could not send the message from Replit."
+        )
+    if result.get("ok"):
+        return True
+    provider_message = result.get("message")
+    if provider_message:
+        raise BrevoDeliveryError(f"Brevo rejected the message: {provider_message}")
+    raise BrevoDeliveryError("Brevo rejected the message from the connected service.")
+
+
 def send_brevo_message(
     user: sqlite3.Row, recipient: str, subject: str, body: str
 ) -> None:
-    api_key = os.environ.get("BREVO_API_KEY", "").strip()
-    if not api_key:
-        raise MailConfigurationError(
-            "Brevo is not configured. Add BREVO_API_KEY in Render."
-        )
-
-    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
-    if not sender_email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", sender_email):
-        raise MailConfigurationError(
-            "Brevo is not configured with a verified sender. Add BREVO_SENDER_EMAIL in Render."
-        )
+    sender_email = f"{user['username']}@{BREVO_SENDER_DOMAIN}"
     sender_name = os.environ.get("BREVO_SENDER_NAME", "FPEDS").strip() or "FPEDS"
     payload = {
         "sender": {"name": sender_name, "email": sender_email},
@@ -448,6 +482,15 @@ def send_brevo_message(
         "subject": subject,
         "textContent": body,
     }
+    connector_result = send_brevo_through_replit_connector(payload)
+    if connector_result is True:
+        return
+
+    api_key = os.environ.get("BREVO_API_KEY", "").strip()
+    if not api_key:
+        raise MailConfigurationError(
+            "Brevo is not configured. Connect Brevo in Replit or add BREVO_API_KEY in Render."
+        )
     request = urlrequest.Request(
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
@@ -575,16 +618,17 @@ def ensure_database() -> None:
 
 @app.get("/api/healthz")
 def health():
-    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "").strip()
-    sender_domain = sender_email.rsplit("@", 1)[-1].lower() if "@" in sender_email else ""
     return jsonify(
         {
             "status": "ok",
             "mailDomain": MAIL_DOMAIN,
             "mailProvider": "brevo",
             "receivingProvider": "mailgun",
-            "brevoConfigured": bool(os.environ.get("BREVO_API_KEY", "").strip()),
-            "brevoSenderDomain": sender_domain or None,
+            "brevoConfigured": bool(
+                os.environ.get("BREVO_API_KEY", "").strip()
+                or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
+            ),
+            "brevoSenderDomain": BREVO_SENDER_DOMAIN,
             "mailgunDomain": os.environ.get("MAILGUN_DOMAIN", MAIL_DOMAIN),
             "mailgunReceivingConfigured": bool(
                 os.environ.get("MAILGUN_SIGNING_KEY", "").strip()

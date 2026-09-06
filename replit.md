@@ -13,10 +13,11 @@ FPEDS is a self-hosted email workspace with Brevo API sending, Mailgun inbound r
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `SESSION_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and `MAILGUN_SIGNING_KEY`
+- Required env: `SESSION_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_DOMAIN`, and `MAILGUN_SIGNING_KEY`
 - Optional env: `FPEDS_MAIL_DOMAIN` — receiving/mailbox domain; defaults to `fpdf.2bd.net`
 - Optional env: `SQLITE_PATH` — SQLite file path; set this to a Render persistent disk path
 - Optional env: `MAILGUN_DOMAIN` — Mailgun receiving domain; defaults to `fpdf.2bd.net`
+- Optional env: `MAILGUN_API_KEY` — Mailgun account API key for provider-side route/domain management
 - Optional env: `GROQ_API_KEY` — enables AI spam scoring; heuristic scoring works without it
 
 ## Stack
@@ -74,24 +75,24 @@ Set these values in the Render service's Environment page:
 - `FPEDS_MAIL_DOMAIN`: the domain users will receive mail at, `fpdf.2bd.net`.
 - `SQLITE_PATH`: `/var/data/fpeds.sqlite3` when using the Render persistent disk.
 - `BREVO_API_KEY`: a Brevo API key with transactional sending enabled.
-- `BREVO_SENDER_EMAIL`: a sender address verified in Brevo for `fpdf.2bd.net`; the app will not fall back to an unverified mailbox address.
+- `BREVO_SENDER_DOMAIN`: the sender domain verified in Brevo for outbound mail, `fpeds.2bd.net`.
 - `BREVO_SENDER_NAME` (optional): the display name shown to recipients.
 - `MAILGUN_DOMAIN`: `fpdf.2bd.net`.
 - `MAILGUN_SIGNING_KEY`: the signing key shown in Mailgun's webhook settings.
 - `GROQ_API_KEY` (optional): enables AI spam scoring; the local heuristic works without it.
 
 Replit Secrets and Render environment variables are separate. Adding `BREVO_API_KEY`
-to Replit does not add it to the Render web service; set `BREVO_API_KEY` and
-`BREVO_SENDER_EMAIL` directly in the Render service's Environment page.
+to Replit does not add it to the Render web service; set `BREVO_API_KEY` directly
+in the Render service's Environment page.
 
 ### Outgoing mail
 
-Verify `fpdf.2bd.net` as a Brevo sending domain, create a Brevo API key, and set
-`BREVO_API_KEY` and `BREVO_SENDER_EMAIL` in Render. The app calls Brevo's
-`/v3/smtp/email` endpoint with plain-text message content. Provider rejection
-messages are returned to the compose screen so sender verification, API-key,
-account-credit, and recipient problems are actionable instead of appearing as a
-generic send failure.
+Verify `fpeds.2bd.net` as a Brevo sending domain, create a Brevo API key, and set
+`BREVO_API_KEY` in Render. The app sends as `<username>@fpeds.2bd.net` and uses
+the account's receiving address, `<username>@fpdf.2bd.net`, as Reply-To. Provider
+rejection messages are returned to the compose screen so sender verification,
+API-key, account-credit, and recipient problems are actionable instead of
+appearing as a generic send failure.
 
 ### Incoming mail
 
@@ -107,6 +108,8 @@ The app does not run an IMAP server. Incoming delivery is handled by Mailgun Rou
    `<username>@fpdf.2bd.net`; unknown usernames are intentionally ignored.
 
 Mailgun posts the sender, recipient, subject, plain-text body, and signature fields.
+The API key is not needed to receive an inbound webhook; the signing key is what
+authenticates Mailgun's request to the app.
 The endpoint is `POST /webhook/mailgun`; `/webhook/inbound` remains an alias.
 
 ## Pointers
