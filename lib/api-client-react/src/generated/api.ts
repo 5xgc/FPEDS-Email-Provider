@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccessKey,
   AuthSession,
   Folder,
   FolderInput,
@@ -31,6 +32,7 @@ import type {
   MessageUpdate,
   Notification,
   ProfileUpdate,
+  RotatedAccessKey,
   SendMessageInput,
   SignInInput,
   SignUpInput,
@@ -433,6 +435,154 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getGetAccessKeyUrl = () => {
+
+
+
+
+  return `/api/auth/access-key`
+}
+
+/**
+ * @summary Reveal the encrypted access key for the current account
+ */
+export const getAccessKey = async ( options?: Parameters<typeof customFetch>[1]): Promise<AccessKey> => {
+
+  return customFetch<AccessKey>(getGetAccessKeyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAccessKeyQueryKey = () => {
+    return [
+    `/api/auth/access-key`
+    ] as const;
+    }
+
+
+export const getGetAccessKeyQueryOptions = <TData = Awaited<ReturnType<typeof getAccessKey>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccessKey>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAccessKeyQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAccessKey>>> = ({ signal }) => getAccessKey({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAccessKey>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAccessKeyQueryResult = NonNullable<Awaited<ReturnType<typeof getAccessKey>>>
+export type GetAccessKeyQueryError = ErrorType<void>
+
+
+/**
+ * @summary Reveal the encrypted access key for the current account
+ */
+
+export function useGetAccessKey<TData = Awaited<ReturnType<typeof getAccessKey>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAccessKey>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAccessKeyQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRotateAccessKeyUrl = () => {
+
+
+
+
+  return `/api/auth/rotate-key`
+}
+
+/**
+ * @summary Rotate the access key for the current account
+ */
+export const rotateAccessKey = async ( options?: Parameters<typeof customFetch>[1]): Promise<RotatedAccessKey> => {
+
+  return customFetch<RotatedAccessKey>(getRotateAccessKeyUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateAccessKeyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateAccessKey>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateAccessKey>>, TError,void, TContext> => {
+
+const mutationKey = ['rotateAccessKey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateAccessKey>>, void> = () => {
+
+
+          return  rotateAccessKey(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateAccessKeyMutationResult = NonNullable<Awaited<ReturnType<typeof rotateAccessKey>>>
+
+    export type RotateAccessKeyMutationError = ErrorType<void>
+
+    /**
+ * @summary Rotate the access key for the current account
+ */
+export const useRotateAccessKey = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateAccessKey>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rotateAccessKey>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRotateAccessKeyMutationOptions(options));
+    }
 
 export const getUpdateProfileUrl = () => {
 

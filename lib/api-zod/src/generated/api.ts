@@ -87,6 +87,33 @@ export const GetCurrentUserResponse = zod.object({
 
 
 /**
+ * @summary Reveal the encrypted access key for the current account
+ */
+export const getAccessKeyResponseAccessKeyMin = 50;
+export const getAccessKeyResponseAccessKeyMax = 50;
+
+
+
+export const GetAccessKeyResponse = zod.object({
+  "accessKey": zod.string().min(getAccessKeyResponseAccessKeyMin).max(getAccessKeyResponseAccessKeyMax)
+})
+
+
+/**
+ * @summary Rotate the access key for the current account
+ */
+export const rotateAccessKeyResponseAccessKeyMin = 50;
+export const rotateAccessKeyResponseAccessKeyMax = 50;
+
+
+
+export const RotateAccessKeyResponse = zod.object({
+  "accessKey": zod.string().min(rotateAccessKeyResponseAccessKeyMin).max(rotateAccessKeyResponseAccessKeyMax),
+  "rotatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Change the display name or mailbox address
  */
 export const updateProfileBodyUsernameMax = 40;
@@ -148,7 +175,7 @@ export const ListMessagesResponse = zod.array(ListMessagesResponseItem)
 
 
 /**
- * @summary Send an encrypted message through the server's SMTP relay
+ * @summary Send a message through the Brevo transactional email API
  */
 export const sendMessageBodyToMin = 3;
 

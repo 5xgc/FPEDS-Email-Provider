@@ -94,6 +94,36 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           description: Not signed in
+  /auth/access-key:
+    get:
+      operationId: getAccessKey
+      tags: [auth]
+      summary: Reveal the encrypted access key for the current account
+      responses:
+        "200":
+          description: Access key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessKey"
+        "401":
+          description: Not signed in
+        "409":
+          description: Legacy account requires a key refresh
+  /auth/rotate-key:
+    post:
+      operationId: rotateAccessKey
+      tags: [auth]
+      summary: Rotate the access key for the current account
+      responses:
+        "200":
+          description: Rotated access key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotatedAccessKey"
+        "401":
+          description: Not signed in
   /auth/profile:
     patch:
       operationId: updateProfile
@@ -356,6 +386,17 @@ components:
           $ref: "#/components/schemas/User"
         firstLogin:
           type: boolean
+    AccessKey:
+      type: object
+      required: [accessKey]
+      properties:
+        accessKey: { type: string, minLength: 50, maxLength: 50 }
+    RotatedAccessKey:
+      type: object
+      required: [accessKey, rotatedAt]
+      properties:
+        accessKey: { type: string, minLength: 50, maxLength: 50 }
+        rotatedAt: { type: string, format: date-time }
     User:
       type: object
       required: [id, username, email, createdAt, emailChangesRemaining]

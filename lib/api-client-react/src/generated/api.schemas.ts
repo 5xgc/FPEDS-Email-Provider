@@ -43,6 +43,23 @@ export interface AuthSession {
   firstLogin: boolean;
 }
 
+export interface AccessKey {
+  /**
+     * @minLength 50
+     * @maxLength 50
+     */
+  accessKey: string;
+}
+
+export interface RotatedAccessKey {
+  /**
+     * @minLength 50
+     * @maxLength 50
+     */
+  accessKey: string;
+  rotatedAt: string;
+}
+
 export interface ProfileUpdate {
   /**
      * @minLength 1

@@ -14,6 +14,7 @@ import re
 import secrets
 import sqlite3
 import subprocess
+from base64 import urlsafe_b64encode
 from datetime import datetime, timezone
 from email.utils import parseaddr
 from pathlib import Path
@@ -22,6 +23,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 import json
 
+from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, jsonify, request, send_from_directory, session
 
 
@@ -56,6 +58,9 @@ app.config.update(
     SECRET_KEY=os.environ.get("SESSION_SECRET", "local-development-session-secret"),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_NAME="fpeds_session",
+    SESSION_COOKIE_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
     SESSION_COOKIE_SECURE=(
         os.environ.get("FLASK_ENV") == "production"
         or os.environ.get("RENDER", "").lower() == "true"
@@ -83,6 +88,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS users (
               id TEXT PRIMARY KEY,
               access_key_hash TEXT NOT NULL UNIQUE,
+              access_key_ciphertext TEXT,
               username TEXT NOT NULL UNIQUE,
               email TEXT NOT NULL UNIQUE,
               email_changes_remaining INTEGER NOT NULL DEFAULT 2,
@@ -137,6 +143,11 @@ def init_db() -> None:
             );
             """
         )
+        try:
+            connection.execute("ALTER TABLE users ADD COLUMN access_key_ciphertext TEXT")
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
         # Keep existing accounts aligned when the mailbox domain is changed
         # from the original FPEDS domain to the configured receiving domain.
         for row in connection.execute("SELECT id, username, email FROM users").fetchall():
@@ -172,6 +183,27 @@ def check_access_key(access_key: str, stored: str) -> bool:
         return hmac.compare_digest(candidate.hex(), digest_hex)
     except (TypeError, ValueError):
         return False
+
+
+def credential_fernet() -> Fernet:
+    """Use the server session secret as the key-encryption root of trust."""
+    secret = os.environ.get("SESSION_SECRET", "local-development-session-secret").encode()
+    return Fernet(urlsafe_b64encode(hashlib.sha256(secret).digest()))
+
+
+def encrypt_access_key(access_key: str) -> str:
+    return credential_fernet().encrypt(access_key.encode()).decode()
+
+
+def decrypt_access_key(ciphertext: str) -> str | None:
+    try:
+        return credential_fernet().decrypt(ciphertext.encode()).decode()
+    except (InvalidToken, ValueError, UnicodeDecodeError):
+        return None
+
+
+def generate_access_key() -> str:
+    return "".join(secrets.choice("0123456789") for _ in range(50))
 
 
 def normalize_username(username: str) -> str:
@@ -651,6 +683,7 @@ def signup():
     user = {
         "id": new_id(),
         "access_key_hash": hash_access_key(access_key),
+        "access_key_ciphertext": encrypt_access_key(access_key),
         "username": username,
         "email": mailbox_address(username),
         "email_changes_remaining": 2,
@@ -663,9 +696,9 @@ def signup():
             connection.execute(
                 """
                 INSERT INTO users
-                  (id, access_key_hash, username, email, email_changes_remaining,
+                   (id, access_key_hash, access_key_ciphertext, username, email, email_changes_remaining,
                    email_change_year, created_at, updated_at)
-                VALUES (:id, :access_key_hash, :username, :email, :email_changes_remaining,
+                VALUES (:id, :access_key_hash, :access_key_ciphertext, :username, :email, :email_changes_remaining,
                         :email_change_year, :created_at, :updated_at)
                 """,
                 user,
@@ -693,6 +726,8 @@ def signup():
             )
     except sqlite3.IntegrityError:
         return error_response("That access key or username is already in use.", 409)
+    session.clear()
+    session.permanent = True
     session["user_id"] = user["id"]
     return jsonify({"user": public_user(user), "firstLogin": True}), 201
 
@@ -708,8 +743,37 @@ def signin():
     matching = next((row for row in user if check_access_key(access_key, row["access_key_hash"])), None)
     if not matching:
         return error_response("Access key rejected.", 401)
+    session.clear()
+    session.permanent = True
     session["user_id"] = matching["id"]
     return jsonify({"user": public_user(matching), "firstLogin": False})
+
+
+@app.get("/api/auth/access-key")
+def get_access_key():
+    try:
+        user = require_user()
+    except PermissionError as exc:
+        return error_response(str(exc), 401)
+    access_key = decrypt_access_key(user["access_key_ciphertext"] or "")
+    if not access_key:
+        return error_response("This legacy account needs a key refresh before it can be revealed.", 409)
+    return jsonify({"accessKey": access_key})
+
+
+@app.post("/api/auth/rotate-key")
+def rotate_access_key():
+    try:
+        user = require_user()
+    except PermissionError as exc:
+        return error_response(str(exc), 401)
+    access_key = generate_access_key()
+    with db_connection() as connection:
+        connection.execute(
+            "UPDATE users SET access_key_hash = ?, access_key_ciphertext = ?, updated_at = ? WHERE id = ?",
+            (hash_access_key(access_key), encrypt_access_key(access_key), utc_now(), user["id"]),
+        )
+    return jsonify({"accessKey": access_key, "rotatedAt": utc_now()})
 
 
 @app.post("/api/auth/signout")

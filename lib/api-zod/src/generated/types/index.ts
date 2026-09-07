@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessKey';
 export * from './authSession';
 export * from './folder';
 export * from './folderInput';
@@ -17,6 +18,7 @@ export * from './message';
 export * from './messageUpdate';
 export * from './notification';
 export * from './profileUpdate';
+export * from './rotatedAccessKey';
 export * from './sendMessageInput';
 export * from './signInInput';
 export * from './signUpInput';
