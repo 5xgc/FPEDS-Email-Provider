@@ -258,8 +258,8 @@ export default function InboxPage({ folder }: { folder: string }) {
             if (event.target === event.currentTarget) closeMessage();
           }}
         >
-          <article className="h-full w-full max-w-[760px] overflow-y-auto border-l border-white/10 bg-[#0d0d0d]/95 shadow-[-20px_0_80px_hsl(0_0%_0%/.45)] animate-enter">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0d0d0d]/90 px-4 py-3 backdrop-blur-xl sm:px-8">
+           <article className="glass h-full w-full max-w-[760px] overflow-y-auto border-y-0 border-r-0 shadow-[-20px_0_80px_hsl(0_0%_0%/.45)] animate-enter">
+             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-black/20 px-4 py-3 backdrop-blur-2xl sm:px-8">
               <button
                 onClick={closeMessage}
                 className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/[.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

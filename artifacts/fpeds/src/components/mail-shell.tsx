@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, Star, Tag, X } from 'lucide-react';
 import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut, getGetCurrentUserQueryKey } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
+import { ParticleField } from '@/components/particle-field';
 import fpedsIcon from '@assets/image_1788396108244.png';
 
 export function LogoMark() {
@@ -36,9 +37,10 @@ export function MailShell({ children }: { children: React.ReactNode }) {
     ? decodeURIComponent(location.split('/')[2]?.split('?')[0] ?? '')
     : location.split('/')[1] || 'inbox';
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
-      <div className="fixed inset-0 pointer-events-none opacity-40" style={{ background: 'linear-gradient(125deg, transparent 35%, hsl(0 72% 45% / .08), transparent 62%)' }} />
-      <header className="relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-hidden border-b hairline px-4 sm:px-5 md:h-[72px] md:px-8">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-background/75 text-foreground">
+      <ParticleField />
+      <div className="pointer-events-none fixed inset-0 z-0 opacity-70" style={{ background: 'linear-gradient(125deg, transparent 35%, hsl(0 72% 45% / .09), transparent 62%)' }} />
+      <header className="glass relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-hidden border-x-0 border-t-0 px-4 sm:px-5 md:h-[72px] md:px-8">
         <Link href="/inbox" onClick={close} className="flex min-w-0 shrink-0 items-center gap-3" data-testid="link-logo">
           <LogoMark /><span className="text-[15px] font-extrabold tracking-[.22em] text-foreground">FPEDS<span className="text-primary">.</span></span>
         </Link>
@@ -56,7 +58,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
         </div>}
       </header>
        <div className="relative z-20 flex min-w-0">
-          <aside className={`fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] shrink-0 border-r hairline bg-[hsl(0_0%_5%/.98)] p-4 backdrop-blur-xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+           <aside className={`glass fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] shrink-0 border-y-0 border-l-0 p-4 backdrop-blur-2xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
            <div className="mb-5 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
            <div className="mb-6 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
              <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
@@ -78,7 +80,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
          {open && <button className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={close} aria-label="Close navigation" data-testid="button-overlay" />}
           <main className="w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">{children}</main>
       </div>
-       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t hairline bg-[#0d0d0d]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden" aria-label="Mobile mailbox">
+       <nav className="glass fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-x-0 border-b-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl md:hidden" aria-label="Mobile mailbox">
          {[
            { href: '/inbox', label: 'Inbox', icon: Inbox },
            { href: '/starred', label: 'Starred', icon: Star },

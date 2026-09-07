@@ -4,6 +4,7 @@ import { ArrowRight, Check, Copy, FileKey2, KeyRound, LockKeyhole, Upload } from
 import { useGetCurrentUser, useSignIn, useSignUp } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ParticleField } from '@/components/particle-field';
 import { readCredentialFile } from '@/lib/secure-credential-file';
 
 function generateAccessKey() {
@@ -96,10 +97,11 @@ export default function AuthPage() {
   };
 
   return (
-    <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#090909] px-4 text-[#f3f0ed]">
+    <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#090909]/80 px-4 text-[#f3f0ed]">
+      <ParticleField dense />
       <div className="pointer-events-none absolute -right-28 -top-36 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-48 -left-36 h-[520px] w-[520px] rounded-full bg-white/[0.03] blur-3xl" />
-      <section className="relative w-full max-w-[440px] animate-enter">
+      <section className="relative z-10 w-full max-w-[440px] animate-enter">
         <div className="mb-8">
           <h1 className="font-display text-[3.2rem] leading-none tracking-[-.04em] sm:text-[3.65rem]">
             {mode === 'signup' ? 'Create account.' : 'Welcome back.'}
