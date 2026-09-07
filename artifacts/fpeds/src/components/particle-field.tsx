@@ -14,15 +14,16 @@ export function ParticleField({ dense = false }: { dense?: boolean }) {
       {particles.map(([left, top, size, opacity], index) => (
         <span
           key={index}
-          className="absolute top-0 rounded-full bg-white blur-[.4px] animate-particle-fall"
+          className="absolute top-0 rounded-full bg-white animate-particle-fall"
           style={{
             left: `${left}%`,
             top: `${top}%`,
-            width: `${size / 3}px`,
-            height: `${size / 3}px`,
-            opacity,
-            animationDelay: `${index * -0.9}s`,
-            animationDuration: `${7 + (index % 5)}s`,
+            width: `${Math.max(2, size / 2.2)}px`,
+            height: `${Math.max(2, size / 2.2)}px`,
+            opacity: Math.max(opacity, 0.75),
+            boxShadow: `0 0 ${Math.max(5, size)}px hsl(0 0% 100% / ${Math.max(opacity, 0.75)})`,
+            animation: `particle-fall ${4.5 + (index % 5) * 0.75}s linear ${index * -0.55}s infinite`,
+            willChange: 'transform, opacity',
           }}
         />
       ))}

@@ -72,7 +72,7 @@ function MessageRow({ message, select }: { message: Message; select: (id: string
           select(message.id);
         }
       }}
-      className={`group grid w-full cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-b border-white/[.07] px-4 py-4 text-left transition-all duration-300 hover:bg-white/[.055] hover:shadow-[inset_3px_0_0_hsl(0_72%_55%/.65)] focus-visible:bg-white/[.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:grid-cols-[auto_190px_1fr_auto] sm:px-5 ${
+      className={`scroll-reveal-item group grid w-full cursor-pointer grid-cols-[auto_1fr_auto] gap-3 border-b border-white/[.07] px-4 py-4 text-left transition-all duration-300 hover:bg-white/[.055] hover:shadow-[inset_3px_0_0_hsl(0_72%_55%/.65)] focus-visible:bg-white/[.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:grid-cols-[auto_190px_1fr_auto] sm:px-5 ${
         !message.isRead ? 'bg-white/[.025]' : ''
       }`}
       data-testid={`row-message-${message.id}`}

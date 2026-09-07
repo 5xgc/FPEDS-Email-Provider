@@ -78,7 +78,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
          {open && <button className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={close} aria-label="Close navigation" data-testid="button-overlay" />}
-          <main className="w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">{children}</main>
+           <main className="scroll-stage w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">{children}</main>
       </div>
        <nav className="glass fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-x-0 border-b-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl md:hidden" aria-label="Mobile mailbox">
          {[
