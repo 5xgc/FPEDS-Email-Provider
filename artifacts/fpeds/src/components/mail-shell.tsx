@@ -3,16 +3,10 @@ import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, Star, Tag, X } from 'lucide-react';
 import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut, getGetCurrentUserQueryKey } from '@workspace/api-client-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 export function LogoMark() {
-  return (
-    <span className="brand-mark h-10 shrink-0 gap-2.5">
-      <span className="brand-mark-pill" aria-hidden="true" />
-      <span className="font-display text-[15px] font-bold tracking-wide text-foreground">
-        Moral<span className="text-primary">Town</span>
-      </span>
-    </span>
-  );
+  return <BrandLogo />;
 }
 
 export function MailShell({ children }: { children: React.ReactNode }) {

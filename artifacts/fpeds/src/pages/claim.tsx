@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowRight, CheckCircle2, Copy, LoaderCircle, ShieldCheck } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -96,8 +97,7 @@ export default function ClaimPage() {
     <main className="moraltown flex min-h-[100dvh] items-center justify-center px-4 py-8 text-foreground sm:px-8">
       <section className="glass w-full max-w-[520px] rounded-[1.75rem] p-6 sm:p-10" aria-live="polite">
         <Link href="/auth?mode=signup" className="inline-flex items-center gap-2 text-sm font-semibold tracking-wide text-foreground">
-          <span className="brand-mark-pill h-2.5 w-7" aria-hidden="true" />
-          <span>Moral<span className="text-primary">Town</span></span>
+          <BrandLogo />
         </Link>
 
         {step === 'checking' && (
