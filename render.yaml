@@ -20,7 +20,7 @@ services:
       - key: BREVO_SENDER_DOMAIN
         value: fpeds.2bd.net
       - key: BREVO_SENDER_NAME
-        value: FPEDS
+        value: MoralTown
       - key: MAILGUN_DOMAIN
         value: fpdf.2bd.net
       - key: MAILGUN_API_KEY

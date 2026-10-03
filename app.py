@@ -1,4 +1,4 @@
-"""Self-hosted FPEDS webmail service.
+"""Self-hosted MoralTown webmail service.
 
 Brevo handles outbound transactional messages and Mailgun handles inbound
 message routing. Groq is optional for spam scoring.
@@ -22,9 +22,23 @@ from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
 import json
+import logging
+import time
+from decimal import Decimal, InvalidOperation
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, jsonify, request, send_from_directory, session
+from crypto_payments import (
+    ASSETS as PAYMENT_ASSETS,
+    PaymentProviderError,
+    address_and_start_height,
+    amount_units_for_usd,
+    find_payment,
+    format_units,
+    purchase_proof,
+    spot_usd,
+    valid_purchase_proof,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -54,6 +68,10 @@ app = Flask(
     __name__,
     static_folder=str(STATIC_DIR) if STATIC_DIR.exists() else None,
 )
+logging.getLogger("werkzeug").disabled = True
+logging.getLogger("gunicorn.access").disabled = True
+logging.getLogger("gunicorn.error").disabled = True
+app.logger.disabled = True
 app.config.update(
     SECRET_KEY=os.environ.get("SESSION_SECRET", "local-development-session-secret"),
     SESSION_COOKIE_HTTPONLY=True,
@@ -66,6 +84,9 @@ app.config.update(
         or os.environ.get("RENDER", "").lower() == "true"
     ),
 )
+
+FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "moraltown1919")
+PAYMENT_EXPIRY_SECONDS = 60 * 60 * 24
 
 
 def utc_now() -> str:
@@ -141,6 +162,31 @@ def init_db() -> None:
               active INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS payment_orders (
+              id TEXT PRIMARY KEY,
+              currency TEXT NOT NULL,
+              address TEXT NOT NULL,
+              derive_index INTEGER,
+              amount_units TEXT NOT NULL,
+              amount_text TEXT NOT NULL,
+              price_usd TEXT NOT NULL,
+              start_height INTEGER NOT NULL DEFAULT 0,
+              status TEXT NOT NULL DEFAULT 'pending',
+              received_units TEXT NOT NULL DEFAULT '0',
+              transaction_id TEXT,
+              confirmations INTEGER NOT NULL DEFAULT 0,
+              last_checked_at INTEGER NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL,
+              expires_at INTEGER NOT NULL,
+              claimed_at INTEGER
+            );
+
+            CREATE INDEX IF NOT EXISTS payment_orders_currency_status_idx
+              ON payment_orders(currency, status, expires_at);
+
+            CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_currency_amount_idx
+              ON payment_orders(currency, amount_units);
             """
         )
         try:
@@ -427,7 +473,7 @@ def store_inbound(sender: str, recipient: str, subject: str, body: str) -> bool:
         add_notification(
             owner["id"],
             "Spam email blocked",
-            f"A message from {sender} was moved to Spam by FPEDS protection.",
+            f"A message from {sender} was moved to Spam by MoralTown protection.",
             "spam",
         )
     return True
@@ -506,7 +552,7 @@ def send_brevo_message(
     user: sqlite3.Row, recipient: str, subject: str, body: str
 ) -> None:
     sender_email = f"{user['username']}@{BREVO_SENDER_DOMAIN}"
-    sender_name = os.environ.get("BREVO_SENDER_NAME", "FPEDS").strip() or "FPEDS"
+    sender_name = os.environ.get("BREVO_SENDER_NAME", "MoralTown").strip() or "MoralTown"
     payload = {
         "sender": {"name": sender_name, "email": sender_email},
         "replyTo": {"name": user["username"], "email": user["email"]},
@@ -612,7 +658,6 @@ def handle_send():
     except MailConfigurationError as exc:
         return error_response(str(exc), 503)
     except BrevoDeliveryError as exc:
-        app.logger.exception("Brevo delivery failed")
         return error_response(str(exc), 502)
 
     message = {
@@ -648,6 +693,21 @@ def ensure_database() -> None:
     init_db()
 
 
+@app.after_request
+def add_privacy_headers(response):
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    if request.path.startswith(
+        ("/api/", "/auth", "/checkout", "/inbox", "/starred", "/sent", "/drafts", "/spam", "/folder/", "/compose", "/settings")
+    ):
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    return response
+
+
 @app.get("/api/healthz")
 def health():
     return jsonify(
@@ -669,6 +729,221 @@ def health():
     )
 
 
+@app.post("/api/auth/check-access-code")
+def check_access_code():
+    supplied = str((request.get_json(silent=True) or {}).get("accessCode", "")).strip()
+    valid = bool(supplied) and hmac.compare_digest(
+        supplied.encode("utf-8"), FREE_ACCESS_CODE.encode("utf-8")
+    )
+    return jsonify({"valid": valid})
+
+
+def public_payment_order(order: sqlite3.Row) -> dict[str, Any]:
+    currency = order["currency"]
+    asset = PAYMENT_ASSETS[currency]
+    response: dict[str, Any] = {
+        "id": order["id"],
+        "currency": currency,
+        "address": order["address"],
+        "amount": order["amount_text"],
+        "usdPrice": "15.00",
+        "status": order["status"],
+        "confirmations": order["confirmations"],
+        "requiredConfirmations": asset["confirmations"],
+        "expiresAt": order["expires_at"],
+        "transactionId": order["transaction_id"],
+    }
+    if order["status"] == "confirmed" and order["transaction_id"]:
+        response["purchaseToken"] = purchase_proof(
+            order["id"], order["transaction_id"], str(app.config["SECRET_KEY"])
+        )
+    return response
+
+
+def payment_provider_ready() -> bool:
+    configured_secret = os.environ.get("SESSION_SECRET", "").strip()
+    return bool(configured_secret and configured_secret != "local-development-session-secret")
+
+
+@app.post("/api/payments/orders")
+def create_payment_order():
+    if not payment_provider_ready():
+        return error_response("Secure payment checkout is unavailable until the session secret is configured.", 503)
+    currency = str((request.get_json(silent=True) or {}).get("currency", "")).upper()
+    if currency not in PAYMENT_ASSETS:
+        return error_response("Choose BTC, SOL, ETH, or LTC.", 400)
+
+    now = int(time.time())
+    last_request = int(session.get("payment_order_requested_at", 0))
+    if now - last_request < 8:
+        return error_response("Please wait a few seconds before creating another payment request.", 429)
+    session["payment_order_requested_at"] = now
+    try:
+        price = spot_usd(currency)
+        base_amount = amount_units_for_usd(currency, Decimal("15.00"), price)
+        order_id = new_id()
+        expires_at = now + PAYMENT_EXPIRY_SECONDS
+        with db_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            last_used = connection.execute(
+                """
+                SELECT MAX(derive_index) AS last_index FROM payment_orders
+                WHERE currency = ? AND status = 'confirmed'
+                """,
+                (currency,),
+            ).fetchone()
+            last_index = last_used["last_index"]
+            derive_index = 0 if last_index is None else int(last_index) + 1
+
+            # Shared ETH/SOL addresses require an exact, per-order amount so a
+            # transfer can be associated without a memo or customer identity.
+            offset_step = 1_000_000_000 if currency == "ETH" else 1
+            amount_units = base_amount
+            for offset in range(1, 10_000):
+                candidate = base_amount + offset * offset_step
+                existing = connection.execute(
+                    "SELECT 1 FROM payment_orders WHERE currency = ? AND amount_units = ?",
+                    (currency, str(candidate)),
+                ).fetchone()
+                if existing is None:
+                    amount_units = candidate
+                    break
+            else:
+                return error_response("Checkout is busy. Please try again shortly.", 503)
+
+            address, start_height = address_and_start_height(currency, derive_index)
+            amount_text = format_units(currency, amount_units)
+            connection.execute(
+                """
+                INSERT INTO payment_orders
+                  (id, currency, address, derive_index, amount_units, amount_text,
+                   price_usd, start_height, status, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                """,
+                (
+                    order_id,
+                    currency,
+                    address,
+                    derive_index if currency in ("BTC", "LTC") else None,
+                    str(amount_units),
+                    amount_text,
+                    str(price),
+                    start_height,
+                    now,
+                    expires_at,
+                ),
+            )
+            order = connection.execute(
+                "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+            ).fetchone()
+    except PaymentProviderError as exc:
+        return error_response(str(exc), 503)
+    except (InvalidOperation, ValueError, OverflowError):
+        return error_response("The payment amount could not be prepared. Please try again.", 503)
+    return jsonify(public_payment_order(order)), 201
+
+
+@app.post("/api/payments/orders/<order_id>/sent")
+def mark_payment_sent(order_id: str):
+    now = int(time.time())
+    with db_connection() as connection:
+        order = connection.execute(
+            "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+        ).fetchone()
+        if not order:
+            return error_response("Payment request not found.", 404)
+        if order["status"] == "pending":
+            if now >= order["expires_at"]:
+                connection.execute(
+                    "UPDATE payment_orders SET status = 'expired' WHERE id = ?",
+                    (order_id,),
+                )
+            else:
+                connection.execute(
+                    "UPDATE payment_orders SET status = 'checking', last_checked_at = 0 WHERE id = ?",
+                    (order_id,),
+                )
+        order = connection.execute(
+            "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+        ).fetchone()
+    return jsonify(public_payment_order(order))
+
+
+@app.get("/api/payments/orders/<order_id>")
+def get_payment_order(order_id: str):
+    now = int(time.time())
+    with db_connection() as connection:
+        order = connection.execute(
+            "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+        ).fetchone()
+        if not order:
+            return error_response("Payment request not found.", 404)
+        if order["status"] == "pending" and now >= order["expires_at"]:
+            connection.execute(
+                "UPDATE payment_orders SET status = 'expired' WHERE id = ?",
+                (order_id,),
+            )
+            order = connection.execute(
+                "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+            ).fetchone()
+        should_check = (
+            order["status"] in ("checking", "confirming")
+            and now - int(order["last_checked_at"]) >= 10
+        )
+        if should_check:
+            connection.execute(
+                "UPDATE payment_orders SET last_checked_at = ? WHERE id = ?",
+                (now, order_id),
+            )
+
+    if should_check:
+        try:
+            match = find_payment(
+                order["currency"],
+                order["address"],
+                int(order["amount_units"]),
+                int(order["start_height"]),
+            )
+        except (PaymentProviderError, ValueError, TypeError, KeyError, OverflowError):
+            match = None
+        if match and match.get("txid"):
+            required = PAYMENT_ASSETS[order["currency"]]["confirmations"]
+            next_status = "confirmed" if match["confirmations"] >= required else "confirming"
+            with db_connection() as connection:
+                connection.execute(
+                    """
+                    UPDATE payment_orders
+                    SET status = ?, transaction_id = ?, confirmations = ?, received_units = ?
+                    WHERE id = ? AND status IN ('checking', 'confirming')
+                    """,
+                    (
+                        next_status,
+                        match["txid"],
+                        int(match["confirmations"]),
+                        order["amount_units"],
+                        order_id,
+                    ),
+                )
+        elif order["status"] == "confirming":
+            # A shallow confirmation can disappear in a chain reorganization.
+            # Never let an old confirmation count survive a failed re-check.
+            with db_connection() as connection:
+                connection.execute(
+                    """
+                    UPDATE payment_orders
+                    SET status = 'checking', transaction_id = NULL,
+                        confirmations = 0, received_units = '0'
+                    WHERE id = ? AND status = 'confirming'
+                    """,
+                    (order_id,),
+                )
+        with db_connection() as connection:
+            order = connection.execute(
+                "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+            ).fetchone()
+    return jsonify(public_payment_order(order))
+
+
 @app.post("/api/auth/signup")
 def signup():
     data = request.get_json(silent=True) or {}
@@ -679,6 +954,15 @@ def signup():
             "Use a 50-digit access key and a username with at least one letter.",
             400,
         )
+    access_code = str(data.get("accessCode", "")).strip()
+    purchase_token = str(data.get("purchaseToken", "")).strip()
+    free_access = bool(access_code) and hmac.compare_digest(
+        access_code.encode("utf-8"), FREE_ACCESS_CODE.encode("utf-8")
+    )
+    purchase_order_id = purchase_token.split(".", 1)[0] if "." in purchase_token else ""
+    if not free_access and not purchase_order_id:
+        return error_response("Enter a valid access code or complete the lifetime purchase.", 402)
+
     now = utc_now()
     user = {
         "id": new_id(),
@@ -693,6 +977,25 @@ def signup():
     }
     try:
         with db_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if not free_access:
+                order = connection.execute(
+                    "SELECT * FROM payment_orders WHERE id = ?",
+                    (purchase_order_id,),
+                ).fetchone()
+                if (
+                    not order
+                    or order["status"] != "confirmed"
+                    or not order["transaction_id"]
+                    or order["claimed_at"] is not None
+                    or not valid_purchase_proof(
+                        purchase_token,
+                        purchase_order_id,
+                        order["transaction_id"],
+                        str(app.config["SECRET_KEY"]),
+                    )
+                ):
+                    return error_response("This confirmed payment cannot be used for account creation.", 402)
             connection.execute(
                 """
                 INSERT INTO users
@@ -719,11 +1022,16 @@ def signup():
                     user["id"],
                     f"hello@{MAIL_DOMAIN}",
                     user["email"],
-                    "Welcome to FPEDS",
+                        "Welcome to MoralTown",
                     "Your private inbox is ready. Send your first message from the compose button.",
                     now,
                 ),
             )
+            if not free_access:
+                connection.execute(
+                    "UPDATE payment_orders SET claimed_at = ? WHERE id = ? AND claimed_at IS NULL",
+                    (int(time.time()), purchase_order_id),
+                )
     except sqlite3.IntegrityError:
         return error_response("That access key or username is already in use.", 409)
     session.clear()
@@ -1100,7 +1408,7 @@ def frontend(path: str):
             return send_from_directory(STATIC_DIR, path)
         return send_from_directory(STATIC_DIR, "index.html")
     return (
-        "<h1>FPEDS</h1><p>Build the React frontend before starting the production server.</p>",
+        "<h1>MoralTown</h1><p>Build the web app before starting the production server.</p>",
         503,
     )
 

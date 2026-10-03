@@ -20,6 +20,69 @@ export interface SignUpInput {
      * @maxLength 40
      */
   username: string;
+  /** @maxLength 100 */
+  accessCode?: string;
+  /** @maxLength 256 */
+  purchaseToken?: string;
+}
+
+export interface AccessCodeCheckInput {
+  /** @maxLength 100 */
+  accessCode: string;
+}
+
+export interface AccessCodeCheckResult {
+  valid: boolean;
+}
+
+export type PaymentOrderInputCurrency = typeof PaymentOrderInputCurrency[keyof typeof PaymentOrderInputCurrency];
+
+
+export const PaymentOrderInputCurrency = {
+  BTC: 'BTC',
+  SOL: 'SOL',
+  ETH: 'ETH',
+  LTC: 'LTC',
+} as const;
+
+export interface PaymentOrderInput {
+  currency: PaymentOrderInputCurrency;
+}
+
+export type PaymentOrderCurrency = typeof PaymentOrderCurrency[keyof typeof PaymentOrderCurrency];
+
+
+export const PaymentOrderCurrency = {
+  BTC: 'BTC',
+  SOL: 'SOL',
+  ETH: 'ETH',
+  LTC: 'LTC',
+} as const;
+
+export type PaymentOrderStatus = typeof PaymentOrderStatus[keyof typeof PaymentOrderStatus];
+
+
+export const PaymentOrderStatus = {
+  pending: 'pending',
+  checking: 'checking',
+  confirming: 'confirming',
+  confirmed: 'confirmed',
+  expired: 'expired',
+} as const;
+
+export interface PaymentOrder {
+  id: string;
+  currency: PaymentOrderCurrency;
+  address: string;
+  amount: string;
+  usdPrice: string;
+  status: PaymentOrderStatus;
+  confirmations: number;
+  requiredConfirmations: number;
+  expiresAt: number;
+  /** @nullable */
+  transactionId?: string | null;
+  purchaseToken?: string;
 }
 
 export interface SignInInput {

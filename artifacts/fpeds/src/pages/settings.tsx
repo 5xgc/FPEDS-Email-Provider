@@ -143,7 +143,7 @@ export default function SettingsPage() {
       show('Reveal or refresh the access key before exporting it.');
       return;
     }
-    const contents = await createCredentialFile(user.data?.username ?? 'fpeds-user', currentKey, exportPassphrase);
+    const contents = await createCredentialFile(user.data?.username ?? 'moraltown-user', currentKey, exportPassphrase);
     downloadCredentialFile(`${user.data?.username ?? 'fpeds-user'}.fpeds-key`, contents);
     setExportPassphrase('');
     show('Encrypted key file downloaded.');
@@ -200,8 +200,8 @@ export default function SettingsPage() {
             <h1 className="mt-2 font-display text-4xl tracking-[-.05em] sm:text-6xl">Settings<span className="text-primary">.</span></h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Tune your mailbox, protect your access, and keep the room yours.</p>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[.06] px-3 py-2 text-xs text-primary">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Private session active
+            <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[.06] px-3 py-2 text-xs text-primary">
+             <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Workspace ready
           </div>
         </header>
 
@@ -225,7 +225,7 @@ export default function SettingsPage() {
             </div>
           </SettingsCard>
 
-          <SettingsCard icon={KeyRound} eyebrow="Credential vault" title="Access key" description="Reveal, refresh, or save an encrypted backup. Your key is never placed in a URL or session export.">
+          <SettingsCard icon={KeyRound} eyebrow="Account access" title="Access key" description="Reveal, refresh, or save an encrypted backup. Treat this key like a password and keep a copy somewhere you control.">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 break-all font-mono text-xs tracking-[.16em] text-foreground/80">{keyVisible && accessKey ? accessKey : '••••••••••••••••••••••••••••••••••••••••••••••••••••••'}</code>
@@ -243,7 +243,7 @@ export default function SettingsPage() {
             </div>
           </SettingsCard>
 
-          <SettingsCard icon={Shield} eyebrow="Privacy" title="Quiet by default" description="These controls stay local to your workspace and do not change delivery APIs.">
+          <SettingsCard icon={Shield} eyebrow="Workspace preferences" title="Quiet by default" description="These switches are local to this page and do not change email delivery or server-side preferences.">
             <div className="divide-y divide-white/[.07]">
               {[
                 ['read', 'Read receipts', 'Show senders when you open their message.'],
@@ -277,11 +277,11 @@ export default function SettingsPage() {
             <div className="mt-4 grid gap-2 sm:grid-cols-2">{(folders.data ?? []).map((folder) => <div key={folder.id} className="flex items-center justify-between rounded-xl border border-white/[.07] px-4 py-3 text-sm"><span>{folder.name}</span><span className="font-mono text-[10px] text-muted-foreground">{folder.count}</span></div>)}</div>
           </SettingsCard>
 
-          <SettingsCard icon={Bell} eyebrow="Activity" title="Notifications" description="Recent events from your private workspace." className={requestedPanel === 'notifications' ? 'ring-1 ring-primary/40' : ''}>
+          <SettingsCard icon={Bell} eyebrow="Activity" title="Notifications" description="Recent events from your MoralTown workspace." className={requestedPanel === 'notifications' ? 'ring-1 ring-primary/40' : ''}>
             {(notifications.data ?? []).length === 0 ? <p className="rounded-xl bg-white/[.025] px-4 py-6 text-center text-xs text-muted-foreground">No new notifications.</p> : <div className="divide-y divide-white/[.07]">{(notifications.data ?? []).map((note) => <button key={note.id} onClick={() => markNotification.mutate({ id: note.id }, { onSuccess: () => client.invalidateQueries({ queryKey: getListNotificationsQueryKey() }) })} className="flex w-full gap-3 py-4 text-left first:pt-0 last:pb-0" data-testid={`button-notification-${note.id}`}><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${note.isRead ? 'bg-muted' : 'bg-primary'}`} /><span className="min-w-0"><p className="text-sm font-medium">{note.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{note.message}</p><p className="mt-2 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{fmt(note.createdAt)} · {note.isRead ? 'Read' : 'Mark read'}</p></span></button>)}</div>}
           </SettingsCard>
         </div>
-        <div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5 text-primary" /> Sessions persist for 30 days of inactivity. Access-key values are never written to application logs.</div>
+        <div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5 text-primary" /> Email delivery relies on external mail services and networks, each with its own handling practices.</div>
       </div>
     </MailShell>
   );

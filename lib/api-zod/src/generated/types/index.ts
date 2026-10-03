@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessCodeCheckInput';
+export * from './accessCodeCheckResult';
 export * from './accessKey';
 export * from './authSession';
 export * from './folder';
@@ -17,6 +19,11 @@ export * from './mailboxSummary';
 export * from './message';
 export * from './messageUpdate';
 export * from './notification';
+export * from './paymentOrder';
+export * from './paymentOrderCurrency';
+export * from './paymentOrderInput';
+export * from './paymentOrderInputCurrency';
+export * from './paymentOrderStatus';
 export * from './profileUpdate';
 export * from './rotatedAccessKey';
 export * from './sendMessageInput';

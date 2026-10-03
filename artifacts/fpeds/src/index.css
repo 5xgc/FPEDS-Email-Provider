@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -33,74 +34,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-  --background: 0 0% 100%;
-  --foreground: 0 0% 10%;
-  --border: 0 0% 86%;
-  --input: 0 0% 80%;
-  --ring: 0 72% 47%;
-  --card: 0 0% 98%;
-  --card-foreground: 0 0% 10%;
-  --card-border: 0 0% 84%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 10%;
-  --primary: 0 72% 47%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 93%;
-  --secondary-foreground: 0 0% 12%;
-  --muted: 0 0% 92%;
-  --muted-foreground: 0 0% 43%;
-  --accent: 0 72% 95%;
-  --accent-foreground: 0 72% 30%;
-  --destructive: 0 72% 40%;
-  --destructive-foreground: 0 0% 100%;
-  --sidebar: 0 0% 97%;
-  --sidebar-foreground: 0 0% 12%;
-  --sidebar-border: 0 0% 87%;
-  --sidebar-primary: 0 72% 47%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 72% 95%;
-  --sidebar-accent-foreground: 0 72% 30%;
-  --sidebar-ring: 0 72% 47%;
-  --app-font-sans: 'Manrope', sans-serif;
-  --app-font-serif: 'Newsreader', serif;
-  --app-font-mono: 'DM Mono', monospace;
-  --radius: 0.8rem;
-}
-
-.dark {
-  --background: 0 0% 7%;
-  --foreground: 0 0% 93%;
-  --border: 0 0% 20%;
-  --input: 0 0% 24%;
-  --ring: 0 72% 54%;
-  --card: 0 0% 10%;
-  --card-foreground: 0 0% 93%;
-  --card-border: 0 0% 19%;
-  --popover: 0 0% 11%;
-  --popover-foreground: 0 0% 93%;
-  --primary: 0 72% 55%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 15%;
-  --secondary-foreground: 0 0% 90%;
-  --muted: 0 0% 14%;
-  --muted-foreground: 0 0% 60%;
-  --accent: 0 52% 17%;
-  --accent-foreground: 0 72% 76%;
-  --destructive: 0 70% 52%;
-  --destructive-foreground: 0 0% 100%;
-  --sidebar: 0 0% 5%;
-  --sidebar-foreground: 0 0% 84%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-primary: 0 72% 55%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 55% 14%;
-  --sidebar-accent-foreground: 0 72% 78%;
-  --sidebar-ring: 0 72% 55%;
-}
-
-/* FPEDS is deliberately dark-first. Keep this at :root so the mailbox never
-   flashes into a light theme before a mode class can be mounted. */
+/* The existing access-key panel keeps its original ink-and-oxide palette.
+   MoralTown's public and signed-in workspace uses a separate civic-paper theme. */
 :root {
   --background: 0 0% 7%;
   --foreground: 0 0% 93%;
@@ -133,6 +68,39 @@
   --app-font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --app-font-serif: Georgia, ui-serif, serif;
   --app-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --radius: 0.8rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 0 0% 7%;
+  --foreground: 0 0% 93%;
+  --border: 0 0% 20%;
+  --input: 0 0% 24%;
+  --ring: 0 72% 54%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 93%;
+  --card-border: 0 0% 19%;
+  --popover: 0 0% 11%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 0 72% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 90%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 52% 17%;
+  --accent-foreground: 0 72% 76%;
+  --destructive: 0 70% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar: 0 0% 5%;
+  --sidebar-foreground: 0 0% 84%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-primary: 0 72% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 55% 14%;
+  --sidebar-accent-foreground: 0 72% 78%;
+  --sidebar-ring: 0 72% 55%;
 }
 
 @layer base {
@@ -149,50 +117,134 @@
   ::selection { background: hsl(0 72% 55% / .3); color: hsl(0 0% 100%); }
 }
 
-@layer utilities {
-  .glass {
-    background: linear-gradient(135deg, hsl(0 0% 100% / .105), hsl(0 0% 100% / .035) 48%, hsl(0 0% 100% / .018));
-    border: 1px solid hsl(0 0% 100% / .12);
-    box-shadow: inset 0 1px 0 hsl(0 0% 100% / .12), inset 0 0 0 1px hsl(0 0% 0% / .08), 0 18px 50px hsl(0 0% 0% / .24);
-    backdrop-filter: blur(22px) saturate(125%);
-    -webkit-backdrop-filter: blur(22px) saturate(125%);
-  }
-  .hairline { border-color: hsl(0 0% 100% / .11); }
-  .text-balance { text-wrap: balance; }
-  .font-display { font-family: var(--app-font-serif); }
-  .font-mono { font-family: var(--app-font-mono); }
+.moraltown {
+  --background: 43 36% 94%;
+  --foreground: 161 22% 16%;
+  --border: 155 13% 82%;
+  --input: 155 13% 78%;
+  --ring: 157 33% 31%;
+  --card: 43 38% 97%;
+  --card-foreground: 161 22% 16%;
+  --card-border: 155 16% 83%;
+  --popover: 43 38% 97%;
+  --popover-foreground: 161 22% 16%;
+  --primary: 157 33% 31%;
+  --primary-foreground: 43 40% 97%;
+  --secondary: 42 25% 88%;
+  --secondary-foreground: 161 22% 19%;
+  --muted: 41 23% 89%;
+  --muted-foreground: 160 9% 43%;
+  --accent: 17 56% 89%;
+  --accent-foreground: 13 42% 33%;
+  --destructive: 7 57% 43%;
+  --destructive-foreground: 0 0% 100%;
+  --app-font-sans: 'DM Sans', sans-serif;
+  --app-font-serif: 'Newsreader', serif;
+  --app-font-mono: 'DM Mono', monospace;
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(ellipse at 94% 4%, hsl(39 59% 83% / .32), transparent 28rem),
+    linear-gradient(145deg, hsl(43 36% 94%), hsl(40 34% 91%));
 }
 
-@keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse-line { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+.moraltown::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  opacity: .2;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.84' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.14'/%3E%3C/svg%3E");
+}
+
+.moraltown .glass {
+  background: hsl(43 38% 97% / .84);
+  border: 1px solid hsl(155 16% 69% / .46);
+  box-shadow: 0 16px 40px hsl(158 20% 24% / .065), inset 0 1px 0 hsl(0 0% 100% / .72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.moraltown .hairline { border-color: hsl(155 14% 77% / .72); }
+.moraltown .font-display { letter-spacing: -.035em; }
+.moraltown .text-primary { color: hsl(157 33% 31%); }
+.moraltown .bg-primary { background-color: hsl(157 33% 31%); }
+.moraltown .bg-primary\/10 { background-color: hsl(157 33% 31% / .10); }
+.moraltown .bg-primary\/15 { background-color: hsl(157 33% 31% / .15); }
+.moraltown .border-white\/10, .moraltown .border-white\/\[\.08\], .moraltown .border-white\/\[\.07\], .moraltown .border-white\/15 { border-color: hsl(155 15% 77% / .62); }
+.moraltown .bg-white\/\[\.025\], .moraltown .bg-white\/\[\.03\], .moraltown .bg-white\/\[\.04\], .moraltown .bg-white\/\[\.035\] { background-color: hsl(158 17% 35% / .035); }
+.moraltown .hover\:bg-white\/\[\.055\]:hover, .moraltown .hover\:bg-white\/\[\.05\]:hover { background-color: hsl(157 33% 31% / .065); }
+.moraltown input, .moraltown textarea { color: hsl(161 22% 16%); }
+.moraltown input::placeholder, .moraltown textarea::placeholder { color: hsl(160 9% 49%); }
+.moraltown .focus-visible\:ring-primary:focus-visible { --tw-ring-color: hsl(157 33% 31%); }
+.moraltown [class*="shadow-"] { --tw-shadow-color: hsl(158 20% 24% / .10); }
+.moraltown .bg-black\/20 { background-color: hsl(160 17% 30% / .055); }
+.moraltown .bg-\[\#121212\]\/95 { background-color: hsl(43 38% 97% / .98); }
+.moraltown .bg-\[\#18100f\]\/95 { background-color: hsl(43 38% 97% / .98); }
+.moraltown .hover\:bg-secondary:hover { background-color: hsl(42 25% 88%); }
+.moraltown .hover\:text-primary:hover { color: hsl(157 33% 31%); }
+.moraltown .scroll-stage { scroll-behavior: smooth; }
+
+.moraltown .brand-mark {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 13px;
+  background: hsl(157 33% 26%);
+  box-shadow: 0 5px 12px hsl(157 25% 22% / .18);
+}
+.moraltown .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+.moraltown .workspace-header { background: hsl(43 38% 96% / .90); border-color: hsl(155 14% 77% / .7); }
+.moraltown .workspace-sidebar { background: hsl(43 36% 93% / .97); border-color: hsl(155 14% 77% / .7); }
+.moraltown .workspace-mobile-nav { background: hsl(43 38% 97% / .94); border-color: hsl(155 14% 77% / .7); }
+.moraltown .nav-active { background: hsl(157 29% 86%); color: hsl(159 31% 24%); }
+.moraltown .compose-cta { background: hsl(157 33% 31%); color: hsl(43 40% 97%); box-shadow: 0 8px 20px hsl(157 29% 25% / .17); }
+.moraltown .compose-cta:hover { background: hsl(157 34% 26%); }
+
+.landing-page { overflow: clip; }
+.landing-header { background: hsl(43 36% 94% / .78); backdrop-filter: blur(18px); }
+.landing-grid {
+  background-image: linear-gradient(hsl(157 19% 45% / .06) 1px, transparent 1px), linear-gradient(90deg, hsl(157 19% 45% / .06) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+.landing-hero-art {
+  background:
+    radial-gradient(circle at 48% 38%, hsl(44 48% 89% / .75) 0 8%, transparent 9%),
+    radial-gradient(ellipse at 50% 42%, hsl(157 31% 34% / .93), hsl(160 30% 22%) 62%, hsl(161 27% 16%));
+}
+.landing-copy { text-wrap: balance; }
+.landing-underline { text-decoration: underline; text-decoration-color: hsl(17 56% 65%); text-decoration-thickness: .075em; text-underline-offset: .12em; }
+.landing-rule { height: 1px; background: linear-gradient(90deg, transparent, hsl(157 19% 45% / .32), transparent); }
+.landing-cta { transition: transform .25s cubic-bezier(.2,.8,.2,1), background-color .25s, box-shadow .25s; }
+.landing-cta:hover { transform: translateY(-3px); box-shadow: 0 12px 25px hsl(157 29% 25% / .16); }
+.landing-orbit { animation: orbit-drift 22s linear infinite; transform-origin: center; }
+.landing-note { animation: note-float 5.5s ease-in-out infinite; }
+.landing-note:nth-child(2) { animation-delay: -1.4s; }
+.landing-note:nth-child(3) { animation-delay: -2.8s; }
+
+@keyframes enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-line { 0%,100% { opacity: .38; } 50% { opacity: 1; } }
 @keyframes float-soft { 0%,100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -8px, 0); } }
-@keyframes particle-fall { 0% { transform: translate3d(0, -18vh, 0) scale(.7); opacity: 0; } 8% { opacity: 1; } 86% { opacity: 1; } 100% { transform: translate3d(28px, 118vh, 0) scale(1.15); opacity: 0; } }
 @keyframes scroll-reveal { from { opacity: .15; transform: translate3d(0, 28px, 0) scale(.985); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
+@keyframes orbit-drift { to { transform: rotate(360deg); } }
+@keyframes note-float { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-9px) rotate(1deg); } }
 .animate-enter { animation: enter .55s cubic-bezier(.2,.7,.2,1) both; }
 .animate-enter-1 { animation-delay: .08s; }
 .animate-enter-2 { animation-delay: .16s; }
 .animate-pulse-line { animation: pulse-line 2.4s ease-in-out infinite; }
 .animate-float-soft { animation: float-soft 6s ease-in-out infinite; }
-.animate-particle-fall { animation: particle-fall 9s linear infinite; }
 
 @supports (animation-timeline: view()) {
-  .scroll-stage > * {
-    animation: scroll-reveal linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 28%;
-  }
-  .scroll-reveal-item {
-    animation: scroll-reveal linear both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 24%;
-  }
+  .scroll-stage > * { animation: scroll-reveal linear both; animation-timeline: view(); animation-range: entry 0% cover 28%; }
+  .scroll-reveal-item { animation: scroll-reveal linear both; animation-timeline: view(); animation-range: entry 0% cover 24%; }
 }
-
+@media (max-width: 767px) {
+  .workspace-sidebar { max-height: calc(100dvh - 4rem); overflow-y: auto; }
+  .landing-hero-art { min-height: 320px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: .01ms !important;
-  }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

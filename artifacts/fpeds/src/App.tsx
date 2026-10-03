@@ -4,8 +4,10 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AuthPage from '@/pages/auth';
+import CheckoutPage from '@/pages/checkout';
 import ComposePage from '@/pages/compose';
 import InboxPage from '@/pages/inbox';
+import LandingPage from '@/pages/landing';
 import NotFound from '@/pages/not-found';
 import SettingsPage from '@/pages/settings';
 import { Route, Switch, useLocation, useRoute, Router as WouterRouter } from 'wouter';
@@ -19,7 +21,9 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 
 function Router() {
   return <RoutedErrorBoundary><Switch>
-    <Route path="/" component={AuthPage} />
+    <Route path="/" component={LandingPage} />
+    <Route path="/auth" component={AuthPage} />
+    <Route path="/checkout" component={CheckoutPage} />
     <Route path="/inbox">{() => <InboxPage folder="inbox" />}</Route>
     <Route path="/starred">{() => <InboxPage folder="starred" />}</Route>
     <Route path="/sent">{() => <InboxPage folder="sent" />}</Route>
@@ -42,22 +46,26 @@ function PageMetadata() {
   useEffect(() => {
     const page = location.split("?")[0];
     const pageInfo = page === "/inbox"
-      ? ["Inbox — FPEDS Mail", "Private inbox for focused, distraction-free email."]
+      ? ["Inbox — MoralTown", "Your MoralTown inbox, in a focused email workspace."]
       : page === "/starred"
-        ? ["Starred messages — FPEDS Mail", "Your saved messages in the private FPEDS mailbox."]
+        ? ["Starred messages — MoralTown", "Your saved messages in the MoralTown mailbox."]
         : page === "/sent"
-          ? ["Sent mail — FPEDS Mail", "Review messages sent from your private FPEDS address."]
+          ? ["Sent mail — MoralTown", "Review messages sent from your MoralTown address."]
           : page === "/drafts"
-            ? ["Drafts — FPEDS Mail", "Continue working on private email drafts."]
+            ? ["Drafts — MoralTown", "Continue working on your MoralTown email drafts."]
             : page === "/spam"
-              ? ["Spam review — FPEDS Mail", "Review suspicious mail before it reaches your private inbox."]
+              ? ["Spam review — MoralTown", "Review suspicious messages in your MoralTown mailbox."]
               : page.startsWith("/folder/")
-                ? [`${decodeURIComponent(page.split("/")[2] ?? "Folder")} — FPEDS Mail`, "A private mailbox folder for organized email."]
+                ? [`${decodeURIComponent(page.split("/")[2] ?? "Folder")} — MoralTown`, "A mailbox folder in your MoralTown workspace."]
                 : page === "/compose"
-                  ? ["Compose email — FPEDS Mail", "Write and send private email without the noise."]
+                  ? ["Compose email — MoralTown", "Write and send email from your MoralTown workspace."]
                   : page === "/settings"
-                    ? ["Mailbox settings — FPEDS Mail", "Manage your private mailbox, folders, and notifications."]
-                    : ["FPEDS Mail — Private email", "A private email workspace with focused inboxes, access-key accounts, and no behavioral tracking."];
+                    ? ["Mailbox settings — MoralTown", "Manage your MoralTown mailbox, folders, and notifications."]
+                    : page === "/auth"
+                      ? ["Sign in or create an account — MoralTown", "Use your MoralTown access key or create a mailbox."]
+                      : page === "/checkout"
+                        ? ["Lifetime access — MoralTown", "Choose a crypto payment method for one-time MoralTown lifetime access."]
+                        : ["MoralTown — A calmer email workspace", "A quieter place to read and write email, with a focused mailbox and clear privacy boundaries."];
     const [title, description] = pageInfo;
     document.title = title;
     const canonical = `${window.location.origin}${page || "/"}`;
@@ -65,6 +73,7 @@ function PageMetadata() {
       document.querySelector(selector)?.setAttribute("content", content);
     };
     setMeta('meta[name="description"]', description);
+    setMeta('meta[name="robots"]', page === "/" ? "index, follow" : "noindex, nofollow, noarchive");
     setMeta('meta[property="og:title"]', title);
     setMeta('meta[property="og:description"]', description);
     setMeta('meta[property="og:url"]', canonical);

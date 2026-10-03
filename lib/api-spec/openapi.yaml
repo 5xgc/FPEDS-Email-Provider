@@ -18,6 +18,8 @@ tags:
     description: Mailbox preferences and subscriptions
   - name: notifications
     description: User notifications
+  - name: payments
+    description: One-time crypto payment requests
 paths:
   /healthz:
     get:
@@ -36,7 +38,7 @@ paths:
     post:
       operationId: signUp
       tags: [auth]
-      summary: Create an FPEDS account from an access key
+      summary: Create a MoralTown account with a free access code or verified purchase
       requestBody:
         required: true
         content:
@@ -52,6 +54,80 @@ paths:
                 $ref: "#/components/schemas/AuthSession"
         "400":
           description: Invalid access key or username
+        "402":
+          description: A valid access code or confirmed payment is required
+  /auth/check-access-code:
+    post:
+      operationId: checkAccessCode
+      tags: [auth]
+      summary: Check whether a provided free access code is valid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessCodeCheckInput"
+      responses:
+        "200":
+          description: Access code validity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessCodeCheckResult"
+  /payments/orders:
+    post:
+      operationId: createPaymentOrder
+      tags: [payments]
+      summary: Create a one-time crypto payment request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentOrderInput"
+      responses:
+        "201":
+          description: Payment address and exact amount
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+        "400":
+          description: Unsupported currency
+        "503":
+          description: Quote or payment provider unavailable
+  /payments/orders/{order_id}:
+    get:
+      operationId: getPaymentOrder
+      tags: [payments]
+      summary: Check the current state of a payment request
+      parameters:
+        - $ref: "#/components/parameters/PaymentOrderId"
+      responses:
+        "200":
+          description: Payment request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+        "404":
+          description: Payment request not found
+  /payments/orders/{order_id}/sent:
+    post:
+      operationId: markPaymentSent
+      tags: [payments]
+      summary: Start checking the public chain after the buyer sends payment
+      parameters:
+        - $ref: "#/components/parameters/PaymentOrderId"
+      responses:
+        "200":
+          description: Payment request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentOrder"
+        "404":
+          description: Payment request not found
   /auth/signin:
     post:
       operationId: signIn
@@ -350,6 +426,12 @@ components:
       required: true
       schema:
         type: string
+    PaymentOrderId:
+      name: order_id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -370,6 +452,44 @@ components:
           type: string
           minLength: 1
           maxLength: 40
+        accessCode:
+          type: string
+          maxLength: 100
+        purchaseToken:
+          type: string
+          maxLength: 256
+    AccessCodeCheckInput:
+      type: object
+      required: [accessCode]
+      properties:
+        accessCode: { type: string, maxLength: 100 }
+    AccessCodeCheckResult:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+    PaymentOrderInput:
+      type: object
+      required: [currency]
+      properties:
+        currency:
+          type: string
+          enum: [BTC, SOL, ETH, LTC]
+    PaymentOrder:
+      type: object
+      required: [id, currency, address, amount, usdPrice, status, confirmations, requiredConfirmations, expiresAt]
+      properties:
+        id: { type: string }
+        currency: { type: string, enum: [BTC, SOL, ETH, LTC] }
+        address: { type: string }
+        amount: { type: string }
+        usdPrice: { type: string }
+        status: { type: string, enum: [pending, checking, confirming, confirmed, expired] }
+        confirmations: { type: number }
+        requiredConfirmations: { type: number }
+        expiresAt: { type: number }
+        transactionId: { type: [string, "null"] }
+        purchaseToken: { type: string }
     SignInInput:
       type: object
       required: [accessKey]

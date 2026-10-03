@@ -225,8 +225,8 @@ export default function InboxPage({ folder }: { folder: string }) {
             <span className="font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">
               {messages.length} conversations
             </span>
-            <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> secured session
+              <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> mailbox refreshes automatically
             </span>
           </div>
           {messagesQuery.isError ? (
@@ -329,7 +329,7 @@ export default function InboxPage({ folder }: { folder: string }) {
                 </div>
                 <div className="mt-10 flex items-start gap-2 border-t border-white/10 pt-5 text-xs text-muted-foreground">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  This message was delivered to your private mailbox.
+                  This message is stored in your MoralTown mailbox.
                 </div>
               </div>
             )}

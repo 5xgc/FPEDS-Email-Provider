@@ -18,18 +18,24 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Create an FPEDS account from an access key
+ * @summary Create a MoralTown account with a free access code or verified purchase
  */
 export const signUpBodyAccessKeyMin = 50;
 export const signUpBodyAccessKeyMax = 50;
 
 export const signUpBodyUsernameMax = 40;
 
+export const signUpBodyAccessCodeMax = 100;
+
+export const signUpBodyPurchaseTokenMax = 256;
+
 
 
 export const SignUpBody = zod.object({
   "accessKey": zod.string().min(signUpBodyAccessKeyMin).max(signUpBodyAccessKeyMax),
-  "username": zod.string().min(1).max(signUpBodyUsernameMax)
+  "username": zod.string().min(1).max(signUpBodyUsernameMax),
+  "accessCode": zod.string().max(signUpBodyAccessCodeMax).optional(),
+  "purchaseToken": zod.string().max(signUpBodyPurchaseTokenMax).optional()
 })
 
 export const SignUpResponse = zod.object({
@@ -41,6 +47,88 @@ export const SignUpResponse = zod.object({
   "emailChangesRemaining": zod.number()
 }),
   "firstLogin": zod.boolean()
+})
+
+
+/**
+ * @summary Check whether a provided free access code is valid
+ */
+export const checkAccessCodeBodyAccessCodeMax = 100;
+
+
+
+export const CheckAccessCodeBody = zod.object({
+  "accessCode": zod.string().max(checkAccessCodeBodyAccessCodeMax)
+})
+
+export const CheckAccessCodeResponse = zod.object({
+  "valid": zod.boolean()
+})
+
+
+/**
+ * @summary Create a one-time crypto payment request
+ */
+export const CreatePaymentOrderBody = zod.object({
+  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC'])
+})
+
+export const CreatePaymentOrderResponse = zod.object({
+  "id": zod.string(),
+  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC']),
+  "address": zod.string(),
+  "amount": zod.string(),
+  "usdPrice": zod.string(),
+  "status": zod.enum(['pending', 'checking', 'confirming', 'confirmed', 'expired']),
+  "confirmations": zod.number(),
+  "requiredConfirmations": zod.number(),
+  "expiresAt": zod.number(),
+  "transactionId": zod.string().nullish(),
+  "purchaseToken": zod.string().optional()
+})
+
+
+/**
+ * @summary Check the current state of a payment request
+ */
+export const GetPaymentOrderParams = zod.object({
+  "order_id": zod.coerce.string()
+})
+
+export const GetPaymentOrderResponse = zod.object({
+  "id": zod.string(),
+  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC']),
+  "address": zod.string(),
+  "amount": zod.string(),
+  "usdPrice": zod.string(),
+  "status": zod.enum(['pending', 'checking', 'confirming', 'confirmed', 'expired']),
+  "confirmations": zod.number(),
+  "requiredConfirmations": zod.number(),
+  "expiresAt": zod.number(),
+  "transactionId": zod.string().nullish(),
+  "purchaseToken": zod.string().optional()
+})
+
+
+/**
+ * @summary Start checking the public chain after the buyer sends payment
+ */
+export const MarkPaymentSentParams = zod.object({
+  "order_id": zod.coerce.string()
+})
+
+export const MarkPaymentSentResponse = zod.object({
+  "id": zod.string(),
+  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC']),
+  "address": zod.string(),
+  "amount": zod.string(),
+  "usdPrice": zod.string(),
+  "status": zod.enum(['pending', 'checking', 'confirming', 'confirmed', 'expired']),
+  "confirmations": zod.number(),
+  "requiredConfirmations": zod.number(),
+  "expiresAt": zod.number(),
+  "transactionId": zod.string().nullish(),
+  "purchaseToken": zod.string().optional()
 })
 
 

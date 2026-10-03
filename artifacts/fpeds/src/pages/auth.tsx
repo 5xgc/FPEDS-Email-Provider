@@ -1,10 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowRight, Check, Copy, FileKey2, KeyRound, LockKeyhole, Upload } from 'lucide-react';
+import { ArrowRight, Check, Copy, FileKey2, KeyRound, LockKeyhole, ShieldCheck, Upload, X } from 'lucide-react';
 import { useGetCurrentUser, useSignIn, useSignUp } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ParticleField } from '@/components/particle-field';
 import { readCredentialFile } from '@/lib/secure-credential-file';
 
 function generateAccessKey() {
@@ -27,6 +26,10 @@ export default function AuthPage() {
   const [filePassphrase, setFilePassphrase] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [gateStage, setGateStage] = useState<'idle' | 'choice' | 'code'>('idle');
+  const [codeInput, setCodeInput] = useState('');
+  const [authorizedCode, setAuthorizedCode] = useState('');
+  const [purchaseToken, setPurchaseToken] = useState('');
   const signIn = useSignIn();
   const signUp = useSignUp();
   const pending = signIn.isPending || signUp.isPending;
@@ -35,11 +38,27 @@ export default function AuthPage() {
     if (currentUser.data) setLocation('/inbox');
   }, [currentUser.data, setLocation]);
 
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const storedPurchase = sessionStorage.getItem('moraltown-purchase-token') ?? '';
+    if (storedPurchase) setPurchaseToken(storedPurchase);
+    if (query.get('mode') === 'signup') {
+      setMode('signup');
+      setAccessKey(generateAccessKey());
+      setGateStage(storedPurchase ? 'idle' : 'choice');
+    }
+  }, []);
+
   const openMode = (nextMode: 'signin' | 'signup' | 'file') => {
     setMode(nextMode);
     setError('');
     setCopied(false);
-    if (nextMode === 'signup' && !accessKey) setAccessKey(generateAccessKey());
+    if (nextMode === 'signup') {
+      if (!accessKey) setAccessKey(generateAccessKey());
+      setGateStage(purchaseToken || authorizedCode ? 'idle' : 'choice');
+    } else {
+      setGateStage('idle');
+    }
   };
 
   const enterWithKey = (key: string) => {
@@ -68,12 +87,37 @@ export default function AuthPage() {
       return;
     }
     signUp.mutate(
-      { data: { accessKey, username: username.trim() } },
+      { data: { accessKey, username: username.trim(), ...(purchaseToken ? { purchaseToken } : { accessCode: authorizedCode }) } },
       {
-        onSuccess: () => setLocation('/inbox'),
-        onError: () => setError('We could not create this account. The key may already be in use.'),
+        onSuccess: () => {
+          sessionStorage.removeItem('moraltown-purchase-token');
+          setLocation('/inbox');
+        },
+        onError: () => setError('We could not create this account. Check the access code or payment status, then try again.'),
       },
     );
+  };
+
+  const authorizeWithCode = async (event: FormEvent) => {
+    event.preventDefault();
+    setError('');
+    try {
+      const response = await fetch('/api/auth/check-access-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode: codeInput.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.valid) {
+        setError('That access code was not accepted.');
+        return;
+      }
+      setAuthorizedCode(codeInput.trim());
+      setGateStage('idle');
+      setError('');
+    } catch {
+      setError('We could not verify that code just now. Please try again.');
+    }
   };
 
   const submitFile = async (event: FormEvent) => {
@@ -98,7 +142,6 @@ export default function AuthPage() {
 
   return (
     <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#090909]/80 px-4 text-[#f3f0ed]">
-      <ParticleField dense />
       <div className="pointer-events-none absolute -right-28 -top-36 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-48 -left-36 h-[520px] w-[520px] rounded-full bg-white/[0.03] blur-3xl" />
       <section className="relative z-10 w-full max-w-[440px] animate-enter">
@@ -108,7 +151,7 @@ export default function AuthPage() {
           </h1>
           <p className="mt-5 text-sm leading-6 text-white/45">
             {mode === 'file'
-              ? 'Unlock your mailbox from an encrypted FPEDS key file.'
+              ? 'Unlock your mailbox from an encrypted MoralTown key file.'
               : mode === 'signup'
                 ? 'Generate your private key, then choose the name people will email.'
                 : 'Use the key you were given to enter your mailbox.'}
@@ -147,7 +190,7 @@ export default function AuthPage() {
         ) : (
           <form onSubmit={submitFile} className="space-y-5">
             <label className="block cursor-pointer rounded-xl border border-dashed border-white/15 bg-white/[.025] p-4 transition hover:border-primary/50 hover:bg-primary/[.04]">
-              <span className="flex items-center gap-3 text-sm"><FileKey2 className="h-4 w-4 text-primary" /> {file ? file.name : 'Choose your .fpeds-key file'}</span>
+              <span className="flex items-center gap-3 text-sm"><FileKey2 className="h-4 w-4 text-primary" /> {file ? file.name : 'Choose your encrypted key file'}</span>
               <span className="mt-2 block text-xs leading-5 text-white/40">Encrypted locally. The file passphrase never leaves your browser.</span>
               <input type="file" accept=".fpeds-key,.json,application/json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="sr-only" data-testid="input-credential-file" />
             </label>
@@ -163,6 +206,36 @@ export default function AuthPage() {
           <span>Sessions use a secure browser cookie. Encrypted key files never contain session cookies.</span>
         </div>
       </section>
+      {mode === 'signup' && gateStage !== 'idle' && (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#090909]/85 px-4 py-8 backdrop-blur-md">
+          <section role="dialog" aria-modal="true" aria-labelledby="signup-gate-title" className="relative w-full max-w-md rounded-3xl border border-white/10 bg-[#11100f] p-6 text-[#f3f0ed] shadow-2xl sm:p-8">
+            <button type="button" onClick={() => { setGateStage('idle'); setMode('signin'); setError(''); }} className="absolute right-4 top-4 rounded-full p-2 text-white/45 transition hover:bg-white/5 hover:text-white" aria-label="Close account options"><X className="h-4 w-4" /></button>
+            {gateStage === 'choice' ? (
+              <>
+                <span className="mb-5 grid h-11 w-11 place-items-center rounded-full border border-primary/20 bg-primary/10 text-primary"><ShieldCheck className="h-5 w-5" /></span>
+                <p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Create a MoralTown account</p>
+                <h2 id="signup-gate-title" className="mt-3 font-display text-3xl">Choose how to join.</h2>
+                <p className="mt-3 text-sm leading-6 text-white/55">Use a free access code or make a one-time $15 lifetime purchase with BTC, SOL, ETH, or LTC.</p>
+                <Button type="button" onClick={() => { setGateStage('code'); setError(''); }} className="mt-7 h-12 w-full rounded-xl font-semibold">Enter an access code <ArrowRight className="h-4 w-4" /></Button>
+                <Button type="button" variant="outline" onClick={() => setLocation('/checkout')} className="mt-3 h-12 w-full rounded-xl border-white/15 bg-white/[.03] text-white hover:bg-white/[.08]">Buy lifetime access · $15 <ArrowRight className="h-4 w-4" /></Button>
+                <div className="mt-5 flex items-start gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-white/40"><KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><span>Your generated access key cannot be recovered if you lose it. Save it somewhere secure.</span></div>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => { setGateStage('choice'); setError(''); }} className="mb-6 inline-flex items-center gap-2 text-xs text-white/45 hover:text-white"><ArrowRight className="h-3.5 w-3.5 rotate-180" /> Back to options</button>
+                <p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Free access</p>
+                <h2 id="signup-gate-title" className="mt-3 font-display text-3xl">Enter your access code.</h2>
+                <p className="mt-3 text-sm leading-6 text-white/55">The code unlocks account creation. You will still receive a separate 50-digit key for signing in.</p>
+                <form onSubmit={authorizeWithCode} className="mt-6 space-y-4">
+                  <Input autoFocus value={codeInput} onChange={(event) => setCodeInput(event.target.value)} autoComplete="off" className="h-12 border-white/10 bg-white/[0.04] text-white placeholder:text-white/25" placeholder="Access code" aria-label="Free access code" />
+                  {error && <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">{error}</p>}
+                  <Button type="submit" disabled={!codeInput.trim()} className="h-12 w-full rounded-xl font-semibold">Continue <ArrowRight className="h-4 w-4" /></Button>
+                </form>
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

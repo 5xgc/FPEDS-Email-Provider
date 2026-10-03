@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccessCodeCheckInput,
+  AccessCodeCheckResult,
   AccessKey,
   AuthSession,
   Folder,
@@ -31,6 +33,8 @@ import type {
   Message,
   MessageUpdate,
   Notification,
+  PaymentOrder,
+  PaymentOrderInput,
   ProfileUpdate,
   RotatedAccessKey,
   SendMessageInput,
@@ -155,7 +159,7 @@ export const getSignUpUrl = () => {
 }
 
 /**
- * @summary Create an FPEDS account from an access key
+ * @summary Create a MoralTown account with a free access code or verified purchase
  */
 export const signUp = async (signUpInput: SignUpInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthSession> => {
 
@@ -204,7 +208,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SignUpMutationError = ErrorType<void>
 
     /**
- * @summary Create an FPEDS account from an access key
+ * @summary Create a MoralTown account with a free access code or verified purchase
  */
 export const useSignUp = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signUp>>, TError,{data: BodyType<SignUpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -215,6 +219,296 @@ export const useSignUp = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSignUpMutationOptions(options));
+    }
+
+export const getCheckAccessCodeUrl = () => {
+
+
+
+
+  return `/api/auth/check-access-code`
+}
+
+/**
+ * @summary Check whether a provided free access code is valid
+ */
+export const checkAccessCode = async (accessCodeCheckInput: AccessCodeCheckInput, options?: Parameters<typeof customFetch>[1]): Promise<AccessCodeCheckResult> => {
+
+  return customFetch<AccessCodeCheckResult>(getCheckAccessCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accessCodeCheckInput)
+  }
+);}
+
+
+
+
+
+export const getCheckAccessCodeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: BodyType<AccessCodeCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: BodyType<AccessCodeCheckInput>}, TContext> => {
+
+const mutationKey = ['checkAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkAccessCode>>, {data: BodyType<AccessCodeCheckInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkAccessCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof checkAccessCode>>>
+    export type CheckAccessCodeMutationBody = BodyType<AccessCodeCheckInput>
+    export type CheckAccessCodeMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Check whether a provided free access code is valid
+ */
+export const useCheckAccessCode = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: BodyType<AccessCodeCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkAccessCode>>,
+        TError,
+        {data: BodyType<AccessCodeCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCheckAccessCodeMutationOptions(options));
+    }
+
+export const getCreatePaymentOrderUrl = () => {
+
+
+
+
+  return `/api/payments/orders`
+}
+
+/**
+ * @summary Create a one-time crypto payment request
+ */
+export const createPaymentOrder = async (paymentOrderInput: PaymentOrderInput, options?: Parameters<typeof customFetch>[1]): Promise<PaymentOrder> => {
+
+  return customFetch<PaymentOrder>(getCreatePaymentOrderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(paymentOrderInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePaymentOrderMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: BodyType<PaymentOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: BodyType<PaymentOrderInput>}, TContext> => {
+
+const mutationKey = ['createPaymentOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPaymentOrder>>, {data: BodyType<PaymentOrderInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPaymentOrder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePaymentOrderMutationResult = NonNullable<Awaited<ReturnType<typeof createPaymentOrder>>>
+    export type CreatePaymentOrderMutationBody = BodyType<PaymentOrderInput>
+    export type CreatePaymentOrderMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a one-time crypto payment request
+ */
+export const useCreatePaymentOrder = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: BodyType<PaymentOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPaymentOrder>>,
+        TError,
+        {data: BodyType<PaymentOrderInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePaymentOrderMutationOptions(options));
+    }
+
+export const getGetPaymentOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/payments/orders/${orderId}`
+}
+
+/**
+ * @summary Check the current state of a payment request
+ */
+export const getPaymentOrder = async (orderId: string, options?: Parameters<typeof customFetch>[1]): Promise<PaymentOrder> => {
+
+  return customFetch<PaymentOrder>(getGetPaymentOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentOrderQueryKey = (orderId: string,) => {
+    return [
+    `/api/payments/orders/${orderId}`
+    ] as const;
+    }
+
+
+export const getGetPaymentOrderQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = ErrorType<void>>(orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentOrderQueryKey(orderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentOrder>>> = ({ signal }) => getPaymentOrder(orderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderId !== null && orderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPaymentOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentOrder>>>
+export type GetPaymentOrderQueryError = ErrorType<void>
+
+
+/**
+ * @summary Check the current state of a payment request
+ */
+
+export function useGetPaymentOrder<TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = ErrorType<void>>(
+ orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPaymentOrderQueryOptions(orderId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkPaymentSentUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/payments/orders/${orderId}/sent`
+}
+
+/**
+ * @summary Start checking the public chain after the buyer sends payment
+ */
+export const markPaymentSent = async (orderId: string, options?: Parameters<typeof customFetch>[1]): Promise<PaymentOrder> => {
+
+  return customFetch<PaymentOrder>(getMarkPaymentSentUrl(orderId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkPaymentSentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPaymentSent>>, TError,{orderId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markPaymentSent>>, TError,{orderId: string}, TContext> => {
+
+const mutationKey = ['markPaymentSent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markPaymentSent>>, {orderId: string}> = (props) => {
+          const {orderId} = props ?? {};
+
+          return  markPaymentSent(orderId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkPaymentSentMutationResult = NonNullable<Awaited<ReturnType<typeof markPaymentSent>>>
+
+    export type MarkPaymentSentMutationError = ErrorType<void>
+
+    /**
+ * @summary Start checking the public chain after the buyer sends payment
+ */
+export const useMarkPaymentSent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markPaymentSent>>, TError,{orderId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markPaymentSent>>,
+        TError,
+        {orderId: string},
+        TContext
+      > => {
+      return useMutation(getMarkPaymentSentMutationOptions(options));
     }
 
 export const getSignInUrl = () => {

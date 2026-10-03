@@ -68,7 +68,7 @@ export async function readCredentialFile(file: File, passphrase: string) {
     !payload.iv ||
     !payload.ciphertext
   ) {
-    throw new Error('That is not a valid FPEDS credential file.');
+    throw new Error('That is not a valid MoralTown credential file.');
   }
   const key = await deriveKey(passphrase, fromBase64(payload.salt));
   try {

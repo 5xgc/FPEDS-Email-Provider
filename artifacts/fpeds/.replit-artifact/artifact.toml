@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
-title = "FPEDS Mail"
-description = "A secure, privacy-first email workspace for fpeds.2bd.net with access-key accounts, local mailbox storage, folders, subscriptions, SMTP sending, and Cloudflare inbound delivery."
+title = "MoralTown Mail"
+description = "A focused email workspace with individual mailboxes, access-key sign-in, and one-time lifetime access by confirmed BTC, SOL, ETH, or LTC payment. Email delivery and network metadata involve external services."
 version = "1.0.0"
 id = "artifacts/fpeds"
 router = "path"
@@ -17,7 +17,7 @@ run = "pnpm --filter @workspace/fpeds run dev"
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/fpeds", "run", "build" ]
 serve = "static"
-publicDir = "artifacts/fpeds/dist/public"
+publicDir = "dist/public"
 
 [[services.production.rewrites]]
 from = "/*"
