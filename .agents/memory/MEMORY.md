@@ -1,3 +1,4 @@
 - [Imported artifact workflows](imported-artifact-workflows.md) — imported artifact TOML can exist without registered workflows; manual workflows need explicit runtime env.
 - [Render pnpm reproducibility](render-pnpm-reproducibility.md) — declare the pnpm version when Corepack might otherwise select an incompatible latest release.
 - [Render deployment quirks](render-deploy-quirks.md) — keep this Flask/pnpm service rooted at the repo root and avoid fragile relative post-build checks.
+- [MoralTown entrypoint and theme](moraltown-entrypoint-theme.md) — keep `/` on signup, use red/black, and do not restore the marketing landing page.

@@ -34,8 +34,7 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* The existing access-key panel keeps its original ink-and-oxide palette.
-   MoralTown's public and signed-in workspace uses a separate civic-paper theme. */
+/* Shared black-and-red palette for the signup, checkout, and mailbox. */
 :root {
   --background: 0 0% 7%;
   --foreground: 0 0% 93%;
@@ -118,25 +117,25 @@
 }
 
 .moraltown {
-  --background: 43 36% 94%;
-  --foreground: 161 22% 16%;
-  --border: 155 13% 82%;
-  --input: 155 13% 78%;
-  --ring: 157 33% 31%;
-  --card: 43 38% 97%;
-  --card-foreground: 161 22% 16%;
-  --card-border: 155 16% 83%;
-  --popover: 43 38% 97%;
-  --popover-foreground: 161 22% 16%;
-  --primary: 157 33% 31%;
-  --primary-foreground: 43 40% 97%;
-  --secondary: 42 25% 88%;
-  --secondary-foreground: 161 22% 19%;
-  --muted: 41 23% 89%;
-  --muted-foreground: 160 9% 43%;
-  --accent: 17 56% 89%;
-  --accent-foreground: 13 42% 33%;
-  --destructive: 7 57% 43%;
+  --background: 0 0% 5%;
+  --foreground: 0 0% 94%;
+  --border: 0 0% 19%;
+  --input: 0 0% 24%;
+  --ring: 0 78% 57%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 94%;
+  --card-border: 0 0% 20%;
+  --popover: 0 0% 9%;
+  --popover-foreground: 0 0% 94%;
+  --primary: 0 78% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 13%;
+  --secondary-foreground: 0 0% 92%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 62%;
+  --accent: 0 56% 17%;
+  --accent-foreground: 0 78% 82%;
+  --destructive: 0 78% 52%;
   --destructive-foreground: 0 0% 100%;
   --app-font-sans: 'DM Sans', sans-serif;
   --app-font-serif: 'Newsreader', serif;
@@ -146,8 +145,9 @@
   min-height: 100dvh;
   color: hsl(var(--foreground));
   background:
-    radial-gradient(ellipse at 94% 4%, hsl(39 59% 83% / .32), transparent 28rem),
-    linear-gradient(145deg, hsl(43 36% 94%), hsl(40 34% 91%));
+    radial-gradient(ellipse at 90% 0%, hsl(0 78% 32% / .18), transparent 34rem),
+    radial-gradient(ellipse at 6% 100%, hsl(0 0% 18% / .16), transparent 30rem),
+    linear-gradient(145deg, hsl(0 0% 5%), hsl(0 0% 8%));
 }
 
 .moraltown::before {
@@ -156,35 +156,37 @@
   position: fixed;
   z-index: -1;
   inset: 0;
-  opacity: .2;
+  opacity: .07;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.84' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.14'/%3E%3C/svg%3E");
 }
 
 .moraltown .glass {
-  background: hsl(43 38% 97% / .84);
-  border: 1px solid hsl(155 16% 69% / .46);
-  box-shadow: 0 16px 40px hsl(158 20% 24% / .065), inset 0 1px 0 hsl(0 0% 100% / .72);
+  background: linear-gradient(145deg, hsl(0 0% 10% / .96), hsl(0 0% 7% / .96));
+  border: 1px solid hsl(0 0% 100% / .12);
+  box-shadow: 0 24px 70px hsl(0 0% 0% / .48), inset 0 1px 0 hsl(0 0% 100% / .045);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
-.moraltown .hairline { border-color: hsl(155 14% 77% / .72); }
+.moraltown .hairline { border-color: hsl(0 0% 100% / .12); }
 .moraltown .font-display { letter-spacing: -.035em; }
-.moraltown .text-primary { color: hsl(157 33% 31%); }
-.moraltown .bg-primary { background-color: hsl(157 33% 31%); }
-.moraltown .bg-primary\/10 { background-color: hsl(157 33% 31% / .10); }
-.moraltown .bg-primary\/15 { background-color: hsl(157 33% 31% / .15); }
-.moraltown .border-white\/10, .moraltown .border-white\/\[\.08\], .moraltown .border-white\/\[\.07\], .moraltown .border-white\/15 { border-color: hsl(155 15% 77% / .62); }
-.moraltown .bg-white\/\[\.025\], .moraltown .bg-white\/\[\.03\], .moraltown .bg-white\/\[\.04\], .moraltown .bg-white\/\[\.035\] { background-color: hsl(158 17% 35% / .035); }
-.moraltown .hover\:bg-white\/\[\.055\]:hover, .moraltown .hover\:bg-white\/\[\.05\]:hover { background-color: hsl(157 33% 31% / .065); }
-.moraltown input, .moraltown textarea { color: hsl(161 22% 16%); }
-.moraltown input::placeholder, .moraltown textarea::placeholder { color: hsl(160 9% 49%); }
-.moraltown .focus-visible\:ring-primary:focus-visible { --tw-ring-color: hsl(157 33% 31%); }
-.moraltown [class*="shadow-"] { --tw-shadow-color: hsl(158 20% 24% / .10); }
-.moraltown .bg-black\/20 { background-color: hsl(160 17% 30% / .055); }
-.moraltown .bg-\[\#121212\]\/95 { background-color: hsl(43 38% 97% / .98); }
-.moraltown .bg-\[\#18100f\]\/95 { background-color: hsl(43 38% 97% / .98); }
-.moraltown .hover\:bg-secondary:hover { background-color: hsl(42 25% 88%); }
-.moraltown .hover\:text-primary:hover { color: hsl(157 33% 31%); }
+.moraltown .text-primary, .moraltown .hover\:text-primary:hover { color: hsl(var(--primary)); }
+.moraltown .bg-primary { background-color: hsl(var(--primary)); }
+.moraltown .bg-primary\/10 { background-color: hsl(var(--primary) / .10); }
+.moraltown .bg-primary\/15 { background-color: hsl(var(--primary) / .15); }
+.moraltown .border-white\/10, .moraltown .border-white\/\[\.08\], .moraltown .border-white\/\[\.07\], .moraltown .border-white\/15 { border-color: hsl(0 0% 100% / .12); }
+.moraltown .bg-white\/\[\.025\], .moraltown .bg-white\/\[\.03\], .moraltown .bg-white\/\[\.04\], .moraltown .bg-white\/\[\.035\] { background-color: hsl(0 0% 100% / .035); }
+.moraltown [class~="bg-white"], .moraltown [class~="bg-white/35"], .moraltown [class~="bg-white/40"], .moraltown [class~="bg-white/50"], .moraltown [class~="bg-white/65"] { background-color: hsl(0 0% 100% / .045); }
+.moraltown .hover\:bg-white\/\[\.055\]:hover, .moraltown .hover\:bg-white\/\[\.05\]:hover, .moraltown .hover\:bg-white\/\[\.06\]:hover { background-color: hsl(0 0% 100% / .08); }
+.moraltown input, .moraltown textarea { color: hsl(var(--foreground)); }
+.moraltown input::placeholder, .moraltown textarea::placeholder { color: hsl(var(--muted-foreground)); }
+.moraltown .focus-visible\:ring-primary:focus-visible { --tw-ring-color: hsl(var(--primary)); }
+.moraltown [class*="shadow-"] { --tw-shadow-color: hsl(0 0% 0% / .38); }
+.moraltown .bg-black\/20 { background-color: hsl(0 0% 0% / .2); }
+.moraltown .bg-\[\#121212\]\/95, .moraltown .bg-\[\#18100f\]\/95 { background-color: hsl(0 0% 7% / .98); }
+.moraltown .hover\:bg-secondary:hover { background-color: hsl(var(--secondary)); }
+.moraltown [class*="bg-emerald"] { background-color: hsl(var(--primary) / .10); }
+.moraltown [class*="border-emerald"] { border-color: hsl(0 0% 100% / .12); }
+.moraltown [class*="text-emerald"] { color: hsl(var(--primary)); }
 .moraltown .scroll-stage { scroll-behavior: smooth; }
 
 .moraltown .brand-mark {
@@ -192,34 +194,34 @@
   place-items: center;
   overflow: hidden;
   border-radius: 13px;
-  background: hsl(157 33% 26%);
-  box-shadow: 0 5px 12px hsl(157 25% 22% / .18);
+  background: hsl(0 78% 42%);
+  box-shadow: 0 5px 16px hsl(0 78% 42% / .24);
 }
 .moraltown .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
-.moraltown .workspace-header { background: hsl(43 38% 96% / .90); border-color: hsl(155 14% 77% / .7); }
-.moraltown .workspace-sidebar { background: hsl(43 36% 93% / .97); border-color: hsl(155 14% 77% / .7); }
-.moraltown .workspace-mobile-nav { background: hsl(43 38% 97% / .94); border-color: hsl(155 14% 77% / .7); }
-.moraltown .nav-active { background: hsl(157 29% 86%); color: hsl(159 31% 24%); }
-.moraltown .compose-cta { background: hsl(157 33% 31%); color: hsl(43 40% 97%); box-shadow: 0 8px 20px hsl(157 29% 25% / .17); }
-.moraltown .compose-cta:hover { background: hsl(157 34% 26%); }
+.moraltown .workspace-header { background: hsl(0 0% 6% / .92); border-color: hsl(0 0% 100% / .11); }
+.moraltown .workspace-sidebar { background: hsl(0 0% 5% / .98); border-color: hsl(0 0% 100% / .11); }
+.moraltown .workspace-mobile-nav { background: hsl(0 0% 6% / .96); border-color: hsl(0 0% 100% / .11); }
+.moraltown .nav-active { background: hsl(var(--primary) / .14); color: hsl(var(--accent-foreground)); }
+.moraltown .compose-cta { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 8px 22px hsl(var(--primary) / .20); }
+.moraltown .compose-cta:hover { background: hsl(0 78% 48%); }
 
 .landing-page { overflow: clip; }
-.landing-header { background: hsl(43 36% 94% / .78); backdrop-filter: blur(18px); }
+.landing-header { background: hsl(0 0% 5% / .88); backdrop-filter: blur(18px); }
 .landing-grid {
-  background-image: linear-gradient(hsl(157 19% 45% / .06) 1px, transparent 1px), linear-gradient(90deg, hsl(157 19% 45% / .06) 1px, transparent 1px);
+  background-image: linear-gradient(hsl(0 78% 55% / .07) 1px, transparent 1px), linear-gradient(90deg, hsl(0 78% 55% / .07) 1px, transparent 1px);
   background-size: 38px 38px;
   mask-image: linear-gradient(to bottom, black, transparent 90%);
 }
 .landing-hero-art {
   background:
-    radial-gradient(circle at 48% 38%, hsl(44 48% 89% / .75) 0 8%, transparent 9%),
-    radial-gradient(ellipse at 50% 42%, hsl(157 31% 34% / .93), hsl(160 30% 22%) 62%, hsl(161 27% 16%));
+    radial-gradient(circle at 48% 38%, hsl(0 78% 55% / .65) 0 8%, transparent 9%),
+    radial-gradient(ellipse at 50% 42%, hsl(0 70% 25% / .93), hsl(0 0% 10%) 62%, hsl(0 0% 4%));
 }
 .landing-copy { text-wrap: balance; }
-.landing-underline { text-decoration: underline; text-decoration-color: hsl(17 56% 65%); text-decoration-thickness: .075em; text-underline-offset: .12em; }
-.landing-rule { height: 1px; background: linear-gradient(90deg, transparent, hsl(157 19% 45% / .32), transparent); }
+.landing-underline { text-decoration: underline; text-decoration-color: hsl(0 78% 55%); text-decoration-thickness: .075em; text-underline-offset: .12em; }
+.landing-rule { height: 1px; background: linear-gradient(90deg, transparent, hsl(0 78% 55% / .32), transparent); }
 .landing-cta { transition: transform .25s cubic-bezier(.2,.8,.2,1), background-color .25s, box-shadow .25s; }
-.landing-cta:hover { transform: translateY(-3px); box-shadow: 0 12px 25px hsl(157 29% 25% / .16); }
+.landing-cta:hover { transform: translateY(-3px); box-shadow: 0 12px 25px hsl(0 78% 25% / .28); }
 .landing-orbit { animation: orbit-drift 22s linear infinite; transform-origin: center; }
 .landing-note { animation: note-float 5.5s ease-in-out infinite; }
 .landing-note:nth-child(2) { animation-delay: -1.4s; }

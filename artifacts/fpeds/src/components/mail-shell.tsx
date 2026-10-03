@@ -24,7 +24,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   const sendingAddress = `${username}@fpeds.2bd.net`;
   const receivingAddress = userQuery.data?.email ?? `${username}@fpdf.2bd.net`;
   const close = () => setOpen(false);
-  const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() }); setLocation('/'); } });
+  const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() }); setLocation('/auth'); } });
   const nav = [
     { href: '/inbox', label: 'Inbox', icon: Inbox, count: summary?.unread },
     { href: '/starred', label: 'Starred', icon: Star },

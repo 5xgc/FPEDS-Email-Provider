@@ -7,7 +7,6 @@ import AuthPage from '@/pages/auth';
 import CheckoutPage from '@/pages/checkout';
 import ComposePage from '@/pages/compose';
 import InboxPage from '@/pages/inbox';
-import LandingPage from '@/pages/landing';
 import NotFound from '@/pages/not-found';
 import SettingsPage from '@/pages/settings';
 import { Route, Switch, useLocation, useRoute, Router as WouterRouter } from 'wouter';
@@ -21,7 +20,7 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 
 function Router() {
   return <RoutedErrorBoundary><Switch>
-    <Route path="/" component={LandingPage} />
+    <Route path="/" component={SignupRedirect} />
     <Route path="/auth" component={AuthPage} />
     <Route path="/checkout" component={CheckoutPage} />
     <Route path="/inbox">{() => <InboxPage folder="inbox" />}</Route>
@@ -34,6 +33,14 @@ function Router() {
     <Route path="/settings" component={SettingsPage} />
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
+}
+
+function SignupRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation('/auth?mode=signup');
+  }, [setLocation]);
+  return null;
 }
 
 function CustomFolderRoute() {
@@ -73,13 +80,19 @@ function PageMetadata() {
       document.querySelector(selector)?.setAttribute("content", content);
     };
     setMeta('meta[name="description"]', description);
-    setMeta('meta[name="robots"]', page === "/" ? "index, follow" : "noindex, nofollow, noarchive");
+    setMeta('meta[name="robots"]', "noindex, nofollow, noarchive");
     setMeta('meta[property="og:title"]', title);
     setMeta('meta[property="og:description"]', description);
     setMeta('meta[property="og:url"]', canonical);
     setMeta('meta[name="twitter:title"]', title);
     setMeta('meta[name="twitter:description"]', description);
-    document.querySelector('link[rel="canonical"]')?.setAttribute("href", canonical);
+    let canonicalLink = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonicalLink) {
+      canonicalLink = document.createElement('link');
+      canonicalLink.rel = 'canonical';
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.href = canonical;
   }, [location]);
   return null;
 }

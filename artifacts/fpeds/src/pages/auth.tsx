@@ -19,14 +19,15 @@ function previewUsername(username: string) {
 export default function AuthPage() {
   const [, setLocation] = useLocation();
   const currentUser = useGetCurrentUser();
-  const [mode, setMode] = useState<'signin' | 'signup' | 'file'>('signin');
-  const [accessKey, setAccessKey] = useState('');
+  const initialSignup = new URLSearchParams(window.location.search).get('mode') === 'signup';
+  const [mode, setMode] = useState<'signin' | 'signup' | 'file'>(initialSignup ? 'signup' : 'signin');
+  const [accessKey, setAccessKey] = useState(() => initialSignup ? generateAccessKey() : '');
   const [username, setUsername] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [filePassphrase, setFilePassphrase] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [gateStage, setGateStage] = useState<'idle' | 'choice' | 'code'>('idle');
+  const [gateStage, setGateStage] = useState<'idle' | 'choice' | 'code'>(initialSignup ? 'choice' : 'idle');
   const [codeInput, setCodeInput] = useState('');
   const [authorizedCode, setAuthorizedCode] = useState('');
   const [purchaseToken, setPurchaseToken] = useState('');
@@ -44,13 +45,14 @@ export default function AuthPage() {
     if (storedPurchase) setPurchaseToken(storedPurchase);
     if (query.get('mode') === 'signup') {
       setMode('signup');
-      setAccessKey(generateAccessKey());
+      setAccessKey((key) => key || generateAccessKey());
       setGateStage(storedPurchase ? 'idle' : 'choice');
     }
   }, []);
 
   const openMode = (nextMode: 'signin' | 'signup' | 'file') => {
     setMode(nextMode);
+    setLocation(nextMode === 'signup' ? '/auth?mode=signup' : '/auth');
     setError('');
     setCopied(false);
     if (nextMode === 'signup') {
@@ -209,7 +211,7 @@ export default function AuthPage() {
       {mode === 'signup' && gateStage !== 'idle' && (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#090909]/85 px-4 py-8 backdrop-blur-md">
           <section role="dialog" aria-modal="true" aria-labelledby="signup-gate-title" className="relative w-full max-w-md rounded-3xl border border-white/10 bg-[#11100f] p-6 text-[#f3f0ed] shadow-2xl sm:p-8">
-            <button type="button" onClick={() => { setGateStage('idle'); setMode('signin'); setError(''); }} className="absolute right-4 top-4 rounded-full p-2 text-white/45 transition hover:bg-white/5 hover:text-white" aria-label="Close account options"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => { setGateStage('idle'); setMode('signin'); setLocation('/auth'); setError(''); }} className="absolute right-4 top-4 rounded-full p-2 text-white/45 transition hover:bg-white/5 hover:text-white" aria-label="Close account options"><X className="h-4 w-4" /></button>
             {gateStage === 'choice' ? (
               <>
                 <span className="mb-5 grid h-11 w-11 place-items-center rounded-full border border-primary/20 bg-primary/10 text-primary"><ShieldCheck className="h-5 w-5" /></span>

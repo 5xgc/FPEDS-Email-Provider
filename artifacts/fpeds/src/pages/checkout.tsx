@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Copy, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import moralTownLogo from '@assets/1a92c7cd-9191-4ab4-8006-ae0a752cba6a-removebg-preview_1791064947522.png';
 
 type Currency = 'BTC' | 'SOL' | 'ETH' | 'LTC';
 type PaymentStatus = 'pending' | 'checking' | 'confirming' | 'confirmed' | 'expired';
@@ -140,36 +139,12 @@ export default function CheckoutPage() {
   const selectedMethod = methods.find((method) => method.currency === currency);
 
   return (
-    <main className="moraltown min-h-[100dvh] px-4 py-7 text-foreground sm:px-7 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/" className="inline-flex items-center gap-3" aria-label="MoralTown home">
-          <span className="brand-mark h-10 w-[132px]"><img src={moralTownLogo} alt="MoralTown" /></span>
-        </Link>
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-[.78fr_1.22fr] lg:gap-14">
-          <aside className="lg:sticky lg:top-10 lg:self-start">
-            <p className="font-mono text-[10px] uppercase tracking-[.2em] text-primary">MoralTown / Lifetime</p>
-            <h1 className="mt-4 font-display text-5xl leading-[.96] tracking-[-.05em] sm:text-6xl">
-              A quieter home for your mail.
-            </h1>
-            <p className="mt-5 text-sm leading-7 text-foreground/65">
-              One payment of $15 for lifetime access. Pay on Bitcoin, Solana, Ethereum, or Litecoin mainnet.
-            </p>
-            <div className="mt-7 space-y-3 border-t border-emerald-950/10 pt-5 text-sm text-foreground/70">
-              <p className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />One account per confirmed payment</p>
-              <p className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />No recurring charge</p>
-              <p className="flex items-start gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Payment is checked against public chain data</p>
-            </div>
-            <p className="mt-8 rounded-2xl border border-emerald-950/10 bg-white/40 p-4 text-xs leading-5 text-foreground/55">
-              Keep your generated 50-digit access key somewhere secure. If you lose it, MoralTown cannot restore mailbox access for you.
-            </p>
-          </aside>
-
-          <section className="glass min-w-0 rounded-[1.75rem] p-5 sm:p-8" aria-live="polite">
+    <main className="moraltown checkout-page flex min-h-[100dvh] items-center justify-center px-4 py-8 text-foreground sm:px-8">
+      <section className="glass checkout-card w-full max-w-[730px] rounded-[1.75rem] p-6 sm:p-10 md:p-12" aria-live="polite">
             {stage === 'plan' && (
               <div className="animate-enter">
                 <p className="font-mono text-[10px] uppercase tracking-[.18em] text-foreground/45">One-time purchase</p>
-                <div className="mt-5 flex items-end justify-between gap-4 border-b border-emerald-950/10 pb-6">
+                <div className="mt-5 flex items-end justify-between gap-4 border-b border-white/10 pb-6">
                   <div><h2 className="font-display text-3xl">Lifetime access</h2><p className="mt-2 text-sm text-foreground/55">Pay once. No subscription.</p></div>
                   <p className="font-display text-4xl tabular-nums">$15</p>
                 </div>
@@ -196,9 +171,9 @@ export default function CheckoutPage() {
                       type="button"
                       onClick={() => { setCurrency(method.currency); setError(''); }}
                       aria-pressed={currency === method.currency}
-                      className={`flex min-h-[78px] items-center gap-4 rounded-2xl border p-4 text-left transition ${currency === method.currency ? 'border-primary bg-primary/10 shadow-sm' : 'border-emerald-950/10 bg-white/35 hover:border-primary/40 hover:bg-white/65'}`}
+                      className={`flex min-h-[78px] items-center gap-4 rounded-2xl border p-4 text-left transition ${currency === method.currency ? 'border-primary bg-primary/10 shadow-sm' : 'border-white/10 bg-white/[.035] hover:border-primary/40 hover:bg-white/[.06]'}`}
                     >
-                      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full font-display text-2xl ${currency === method.currency ? 'bg-primary text-primary-foreground' : 'bg-emerald-950/[.06] text-primary'}`}>{method.symbol}</span>
+                      <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full font-display text-2xl ${currency === method.currency ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'}`}>{method.symbol}</span>
                       <span className="min-w-0"><span className="block font-semibold">{method.name} <span className="font-mono text-xs text-foreground/45">{method.currency}</span></span><span className="mt-1 block truncate text-xs text-foreground/50">{method.network}</span></span>
                     </button>
                   ))}
@@ -217,12 +192,12 @@ export default function CheckoutPage() {
                 <button onClick={() => { sessionStorage.removeItem('moraltown-payment-order-id'); setStage('method'); setOrder(null); setError(''); }} className="mb-6 inline-flex items-center gap-2 text-xs text-foreground/50 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> New payment request</button>
                 <p className="font-mono text-[10px] uppercase tracking-[.18em] text-foreground/45">Send exact amount / {order.currency}</p>
                 <h2 className="mt-2 font-display text-3xl">Your payment address</h2>
-                <div className="mt-6 rounded-2xl border border-emerald-950/10 bg-white/50 p-4 sm:p-5">
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.035] p-4 sm:p-5">
                   <p className="font-mono text-[9px] uppercase tracking-[.16em] text-foreground/45">Amount · about ${order.usdPrice} USD</p>
                   <p className="mt-2 break-all font-mono text-xl font-semibold tabular-nums text-primary sm:text-2xl">{order.amount} <span className="text-sm">{order.currency}</span></p>
                   <p className="mb-2 mt-5 font-mono text-[9px] uppercase tracking-[.16em] text-foreground/45">Send to · {selectedMethod?.network ?? `${order.currency} mainnet`}</p>
                   <div className="flex min-w-0 items-stretch gap-2">
-                    <code className="min-w-0 flex-1 select-all break-all rounded-xl bg-emerald-950/[.045] p-3 font-mono text-[11px] leading-5 text-foreground/80 sm:text-xs">{order.address}</code>
+                    <code className="min-w-0 flex-1 select-all break-all rounded-xl bg-black/35 p-3 font-mono text-[11px] leading-5 text-foreground/80 sm:text-xs">{order.address}</code>
                     <Button variant="outline" onClick={copyAddress} className="h-auto min-h-12 shrink-0 px-3" aria-label="Copy payment address">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button>
                   </div>
                   <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-foreground/50"><Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />Request expires {new Date(order.expiresAt * 1000).toLocaleString()}. The request is saved in this browser. After you tell us you sent it, confirmation continues while the chain is checked.</p>
@@ -250,15 +225,13 @@ export default function CheckoutPage() {
                 {order.status === 'expired' && <p className="mt-5 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">This payment request expired before it was marked as sent. Create a new request before paying.</p>}
                 {error && <p className="mt-4 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
 
-                <div className="mt-6 space-y-3 border-t border-emerald-950/10 pt-5">
+                <div className="mt-6 space-y-3 border-t border-white/10 pt-5">
                   <p className="flex items-start gap-2 text-xs leading-5 text-foreground/55"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Send the exact quoted amount, with the network fee paid separately. A different amount may not match automatically.</p>
                   <p className="text-xs leading-5 text-foreground/50">Blockchain transfers are public and generally irreversible. Payment confirmation uses public blockchain data services; those services can see the address being checked and may retain their own logs. This checkout does not collect an email address.</p>
                 </div>
               </div>
             )}
-          </section>
-        </div>
-      </div>
+      </section>
     </main>
   );
 }
