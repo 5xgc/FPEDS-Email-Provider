@@ -93,9 +93,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/PaymentOrder"
         "400":
-          description: Unsupported currency
+          description: Unsupported currency or invalid contact email
+        "409":
+          description: Contact email already has a paid account
         "503":
           description: Quote or payment provider unavailable
+  /payments/claims/validate:
+    get:
+      operationId: validatePaymentClaim
+      tags: [payments]
+      summary: Check whether a confirmed payment claim link is still usable
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+      responses:
+        "200":
+          description: Claim link validity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentClaimValidation"
   /payments/orders/{order_id}:
     get:
       operationId: getPaymentOrder
@@ -458,6 +480,9 @@ components:
         purchaseToken:
           type: string
           maxLength: 256
+        claimToken:
+          type: string
+          maxLength: 128
     AccessCodeCheckInput:
       type: object
       required: [accessCode]
@@ -470,14 +495,24 @@ components:
         valid: { type: boolean }
     PaymentOrderInput:
       type: object
-      required: [currency]
+      required: [currency, email]
       properties:
         currency:
           type: string
           enum: [BTC, SOL, ETH, LTC]
+        email:
+          type: string
+          pattern: '^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$'
+          maxLength: 254
+    PaymentClaimValidation:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
     PaymentOrder:
       type: object
-      required: [id, currency, address, amount, usdPrice, status, confirmations, requiredConfirmations, expiresAt]
+      required: [id, currency, address, amount, usdPrice, status, confirmations, requiredConfirmations, expiresAt, confirmationEmailSent]
       properties:
         id: { type: string }
         currency: { type: string, enum: [BTC, SOL, ETH, LTC] }
@@ -490,6 +525,7 @@ components:
         expiresAt: { type: number }
         transactionId: { type: [string, "null"] }
         purchaseToken: { type: string }
+        confirmationEmailSent: { type: boolean }
     SignInInput:
       type: object
       required: [accessKey]

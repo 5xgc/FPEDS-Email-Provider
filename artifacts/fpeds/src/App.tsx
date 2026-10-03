@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AuthPage from '@/pages/auth';
+import ClaimPage from '@/pages/claim';
 import CheckoutPage from '@/pages/checkout';
 import ComposePage from '@/pages/compose';
 import InboxPage from '@/pages/inbox';
@@ -23,6 +24,7 @@ function Router() {
     <Route path="/" component={SignupRedirect} />
     <Route path="/auth" component={AuthPage} />
     <Route path="/checkout" component={CheckoutPage} />
+    <Route path="/claim" component={ClaimPage} />
     <Route path="/inbox">{() => <InboxPage folder="inbox" />}</Route>
     <Route path="/starred">{() => <InboxPage folder="starred" />}</Route>
     <Route path="/sent">{() => <InboxPage folder="sent" />}</Route>
@@ -72,6 +74,8 @@ function PageMetadata() {
                       ? ["Sign in or create an account — MoralTown", "Use your MoralTown access key or create a mailbox."]
                       : page === "/checkout"
                         ? ["Lifetime access — MoralTown", "Choose a crypto payment method for one-time MoralTown lifetime access."]
+                        : page === "/claim"
+                          ? ["Create your MoralTown account", "Claim your verified MoralTown payment and create one account."]
                         : ["MoralTown — A calmer email workspace", "A quieter place to read and write email, with a focused mailbox and clear privacy boundaries."];
     const [title, description] = pageInfo;
     document.title = title;

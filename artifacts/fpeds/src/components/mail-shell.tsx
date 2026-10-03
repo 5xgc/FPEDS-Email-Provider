@@ -4,10 +4,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, Star, Tag, X } from 'lucide-react';
 import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut, getGetCurrentUserQueryKey } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
-import moralTownLogo from '@assets/1a92c7cd-9191-4ab4-8006-ae0a752cba6a-removebg-preview_1791064947522.png';
-
 export function LogoMark() {
-  return <span className="brand-mark h-10 w-[132px] shrink-0"><img src={moralTownLogo} alt="MoralTown" /></span>;
+  return (
+    <span className="brand-mark h-10 shrink-0 gap-2.5">
+      <span className="brand-mark-pill" aria-hidden="true" />
+      <span className="font-display text-[15px] font-bold tracking-wide text-foreground">
+        Moral<span className="text-primary">Town</span>
+      </span>
+    </span>
+  );
 }
 
 export function MailShell({ children }: { children: React.ReactNode }) {

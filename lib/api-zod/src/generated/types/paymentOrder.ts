@@ -21,4 +21,5 @@ export interface PaymentOrder {
   /** @nullable */
   transactionId?: string | null;
   purchaseToken?: string;
+  confirmationEmailSent: boolean;
 }

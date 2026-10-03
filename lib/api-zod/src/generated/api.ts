@@ -29,13 +29,16 @@ export const signUpBodyAccessCodeMax = 100;
 
 export const signUpBodyPurchaseTokenMax = 256;
 
+export const signUpBodyClaimTokenMax = 128;
+
 
 
 export const SignUpBody = zod.object({
   "accessKey": zod.string().min(signUpBodyAccessKeyMin).max(signUpBodyAccessKeyMax),
   "username": zod.string().min(1).max(signUpBodyUsernameMax),
   "accessCode": zod.string().max(signUpBodyAccessCodeMax).optional(),
-  "purchaseToken": zod.string().max(signUpBodyPurchaseTokenMax).optional()
+  "purchaseToken": zod.string().max(signUpBodyPurchaseTokenMax).optional(),
+  "claimToken": zod.string().max(signUpBodyClaimTokenMax).optional()
 })
 
 export const SignUpResponse = zod.object({
@@ -69,8 +72,15 @@ export const CheckAccessCodeResponse = zod.object({
 /**
  * @summary Create a one-time crypto payment request
  */
+export const createPaymentOrderBodyEmailMax = 254;
+
+
+export const createPaymentOrderBodyEmailRegExp = new RegExp('^[^@\\s]+@[^@\\s.]+(?:\\.[^@\\s.]+)+$');
+
+
 export const CreatePaymentOrderBody = zod.object({
-  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC'])
+  "currency": zod.enum(['BTC', 'SOL', 'ETH', 'LTC']),
+  "email": zod.string().max(createPaymentOrderBodyEmailMax).regex(createPaymentOrderBodyEmailRegExp)
 })
 
 export const CreatePaymentOrderResponse = zod.object({
@@ -84,7 +94,24 @@ export const CreatePaymentOrderResponse = zod.object({
   "requiredConfirmations": zod.number(),
   "expiresAt": zod.number(),
   "transactionId": zod.string().nullish(),
-  "purchaseToken": zod.string().optional()
+  "purchaseToken": zod.string().optional(),
+  "confirmationEmailSent": zod.boolean()
+})
+
+
+/**
+ * @summary Check whether a confirmed payment claim link is still usable
+ */
+export const validatePaymentClaimQueryTokenMax = 128;
+
+
+
+export const ValidatePaymentClaimQueryParams = zod.object({
+  "token": zod.coerce.string().min(1).max(validatePaymentClaimQueryTokenMax)
+})
+
+export const ValidatePaymentClaimResponse = zod.object({
+  "valid": zod.boolean()
 })
 
 
@@ -106,7 +133,8 @@ export const GetPaymentOrderResponse = zod.object({
   "requiredConfirmations": zod.number(),
   "expiresAt": zod.number(),
   "transactionId": zod.string().nullish(),
-  "purchaseToken": zod.string().optional()
+  "purchaseToken": zod.string().optional(),
+  "confirmationEmailSent": zod.boolean()
 })
 
 
@@ -128,7 +156,8 @@ export const MarkPaymentSentResponse = zod.object({
   "requiredConfirmations": zod.number(),
   "expiresAt": zod.number(),
   "transactionId": zod.string().nullish(),
-  "purchaseToken": zod.string().optional()
+  "purchaseToken": zod.string().optional(),
+  "confirmationEmailSent": zod.boolean()
 })
 
 

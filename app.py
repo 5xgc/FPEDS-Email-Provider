@@ -14,6 +14,7 @@ import re
 import secrets
 import sqlite3
 import subprocess
+import threading
 from base64 import urlsafe_b64encode
 from datetime import datetime, timezone
 from email.utils import parseaddr
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
+from urllib.parse import quote
 import json
 import logging
 import time
@@ -86,7 +88,11 @@ app.config.update(
 )
 
 FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "moraltown1919")
-PAYMENT_EXPIRY_SECONDS = 60 * 60 * 24
+MASTER_ACCESS_CODE = "moraltown1919"
+PAYMENT_EXPIRY_SECONDS = 60 * 60 * 2
+PAYMENT_CHECK_INTERVAL_SECONDS = 30
+PAYMENT_MONITOR_INTERVAL_SECONDS = 5
+PAYMENT_EMAIL_RETRY_SECONDS = 60
 
 
 def utc_now() -> str:
@@ -112,6 +118,7 @@ def init_db() -> None:
               access_key_ciphertext TEXT,
               username TEXT NOT NULL UNIQUE,
               email TEXT NOT NULL UNIQUE,
+              purchase_email TEXT,
               email_changes_remaining INTEGER NOT NULL DEFAULT 2,
               email_change_year INTEGER NOT NULL,
               created_at TEXT NOT NULL,
@@ -179,7 +186,13 @@ def init_db() -> None:
               last_checked_at INTEGER NOT NULL DEFAULT 0,
               created_at INTEGER NOT NULL,
               expires_at INTEGER NOT NULL,
-              claimed_at INTEGER
+              claimed_at INTEGER,
+              contact_email TEXT,
+              claim_token_hash TEXT,
+              claim_token_ciphertext TEXT,
+              claim_origin TEXT,
+              confirmation_email_sent_at INTEGER,
+              confirmation_email_attempted_at INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS payment_orders_currency_status_idx
@@ -194,6 +207,34 @@ def init_db() -> None:
         except sqlite3.OperationalError as exc:
             if "duplicate column name" not in str(exc).lower():
                 raise
+        migrations = (
+            ("users", "purchase_email", "TEXT"),
+            ("payment_orders", "contact_email", "TEXT"),
+            ("payment_orders", "claim_token_hash", "TEXT"),
+            ("payment_orders", "claim_token_ciphertext", "TEXT"),
+            ("payment_orders", "claim_origin", "TEXT"),
+            ("payment_orders", "confirmation_email_sent_at", "INTEGER"),
+            (
+                "payment_orders",
+                "confirmation_email_attempted_at",
+                "INTEGER NOT NULL DEFAULT 0",
+            ),
+        )
+        for table, column, definition in migrations:
+            existing_columns = {
+                row["name"]
+                for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            if column not in existing_columns:
+                connection.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+                )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS users_purchase_email_idx
+            ON users(purchase_email) WHERE purchase_email IS NOT NULL
+            """
+        )
         # Keep existing accounts aligned when the mailbox domain is changed
         # from the original FPEDS domain to the configured receiving domain.
         for row in connection.execute("SELECT id, username, email FROM users").fetchall():
@@ -262,6 +303,15 @@ def valid_username(username: str) -> bool:
 
 def valid_access_key(access_key: str) -> bool:
     return bool(re.fullmatch(r"\d{50}", access_key.strip()))
+
+
+def accepts_free_access_code(supplied: str) -> bool:
+    candidates = {FREE_ACCESS_CODE, MASTER_ACCESS_CODE}
+    return any(
+        hmac.compare_digest(supplied.encode("utf-8"), candidate.encode("utf-8"))
+        for candidate in candidates
+        if candidate
+    )
 
 
 def mailbox_address(username: str) -> str:
@@ -599,6 +649,73 @@ def send_brevo_message(
         ) from exc
 
 
+class PaymentConfirmationEmailError(RuntimeError):
+    """The payment confirmation email could not be sent."""
+
+
+def send_resend_payment_confirmation(
+    recipient: str, claim_url: str, order_id: str
+) -> None:
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    if not api_key:
+        raise PaymentConfirmationEmailError(
+            "Payment confirmation email is not configured."
+        )
+    safe_url = html.escape(claim_url, quote=True)
+    text = (
+        "Your MoralTown payment has been confirmed. "
+        "Open this one-time account-creation link whenever you are ready:\n\n"
+        f"{claim_url}\n\n"
+        "The link does not expire, but it can create only one account."
+    )
+    payload = {
+        "from": "auth@fpeds.2bd.net",
+        "to": [recipient],
+        "subject": "Your MoralTown payment is confirmed",
+        "text": text,
+        "html": (
+            "<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto;"
+            "padding:32px;color:#f5f5f5;background:#101010\">"
+            "<p style=\"color:#ed3434;font-size:12px;letter-spacing:2px;"
+            "text-transform:uppercase\">MoralTown</p>"
+            "<h1 style=\"font-size:26px\">Payment confirmed</h1>"
+            "<p>Your payment has been verified on the blockchain.</p>"
+            "<p>Use the link below whenever you are ready to create your account. "
+            "It does not expire and can be used once.</p>"
+            f"<p><a href=\"{safe_url}\" style=\"display:inline-block;padding:14px 22px;"
+            "border-radius:10px;background:#e32e35;color:#fff;text-decoration:none;"
+            "font-weight:bold\">Create your account</a></p>"
+            "<p style=\"font-size:12px;color:#aaa\">If the button does not work, "
+            f"copy this link into your browser:<br><a href=\"{safe_url}\" "
+            f"style=\"color:#ff5b60\">{safe_url}</a></p></div>"
+        ),
+    }
+    email_request = urlrequest.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Idempotency-Key": f"moraltown-payment-confirmation-{order_id}",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(email_request, timeout=25) as response:
+            if response.status < 200 or response.status >= 300:
+                raise PaymentConfirmationEmailError(
+                    f"Resend returned HTTP {response.status}."
+                )
+    except urlerror.HTTPError as exc:
+        raise PaymentConfirmationEmailError(
+            f"Resend returned HTTP {exc.code}."
+        ) from exc
+    except (urlerror.URLError, TimeoutError, OSError) as exc:
+        raise PaymentConfirmationEmailError(
+            "Resend could not be reached."
+        ) from exc
+
+
 class MailgunReceivingError(RuntimeError):
     """Mailgun rejected or could not parse an inbound message."""
 
@@ -721,6 +838,7 @@ def health():
                 or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
             ),
             "brevoSenderDomain": BREVO_SENDER_DOMAIN,
+            "resendConfigured": bool(os.environ.get("RESEND_API_KEY", "").strip()),
             "mailgunDomain": os.environ.get("MAILGUN_DOMAIN", MAIL_DOMAIN),
             "mailgunReceivingConfigured": bool(
                 os.environ.get("MAILGUN_SIGNING_KEY", "").strip()
@@ -732,9 +850,7 @@ def health():
 @app.post("/api/auth/check-access-code")
 def check_access_code():
     supplied = str((request.get_json(silent=True) or {}).get("accessCode", "")).strip()
-    valid = bool(supplied) and hmac.compare_digest(
-        supplied.encode("utf-8"), FREE_ACCESS_CODE.encode("utf-8")
-    )
+    valid = bool(supplied) and accepts_free_access_code(supplied)
     return jsonify({"valid": valid})
 
 
@@ -752,8 +868,16 @@ def public_payment_order(order: sqlite3.Row) -> dict[str, Any]:
         "requiredConfirmations": asset["confirmations"],
         "expiresAt": order["expires_at"],
         "transactionId": order["transaction_id"],
+        "confirmationEmailSent": bool(
+            order["confirmation_email_sent_at"]
+        ) if order["contact_email"] else False,
     }
-    if order["status"] == "confirmed" and order["transaction_id"]:
+    if (
+        order["status"] == "confirmed"
+        and order["transaction_id"]
+        and not order["claim_token_hash"]
+    ):
+        # Older confirmed orders keep their existing in-browser claim path.
         response["purchaseToken"] = purchase_proof(
             order["id"], order["transaction_id"], str(app.config["SECRET_KEY"])
         )
@@ -769,26 +893,58 @@ def payment_provider_ready() -> bool:
 def create_payment_order():
     if not payment_provider_ready():
         return error_response("Secure payment checkout is unavailable until the session secret is configured.", 503)
-    currency = str((request.get_json(silent=True) or {}).get("currency", "")).upper()
+    data = request.get_json(silent=True) or {}
+    currency = str(data.get("currency", "")).upper()
     if currency not in PAYMENT_ASSETS:
         return error_response("Choose BTC, SOL, ETH, or LTC.", 400)
+    contact_email = str(data.get("email", "")).strip().lower()
+    parsed_email = parseaddr(contact_email)[1]
+    if (
+        len(contact_email) > 254
+        or parsed_email != contact_email
+        or not re.fullmatch(r"[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+", contact_email)
+    ):
+        return error_response("Enter a valid email address for your account link.", 400)
 
     now = int(time.time())
     last_request = int(session.get("payment_order_requested_at", 0))
     if now - last_request < 8:
         return error_response("Please wait a few seconds before creating another payment request.", 429)
     session["payment_order_requested_at"] = now
+    with db_connection() as connection:
+        if connection.execute(
+            "SELECT 1 FROM users WHERE purchase_email = ? LIMIT 1",
+            (contact_email,),
+        ).fetchone():
+            return error_response(
+                "This email already has a paid account. Use an access code to make another account.",
+                409,
+            )
+        existing_order = connection.execute(
+            """
+            SELECT * FROM payment_orders
+            WHERE contact_email = ? AND claimed_at IS NULL
+              AND status IN ('pending', 'checking', 'confirming', 'confirmed')
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (contact_email,),
+        ).fetchone()
+        if existing_order:
+            return jsonify(public_payment_order(existing_order)), 200
     try:
         price = spot_usd(currency)
         base_amount = amount_units_for_usd(currency, Decimal("15.00"), price)
         order_id = new_id()
+        claim_token = secrets.token_urlsafe(32)
+        claim_token_hash = hashlib.sha256(claim_token.encode("utf-8")).hexdigest()
+        claim_token_ciphertext = encrypt_access_key(claim_token)
         expires_at = now + PAYMENT_EXPIRY_SECONDS
         with db_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             last_used = connection.execute(
                 """
                 SELECT MAX(derive_index) AS last_index FROM payment_orders
-                WHERE currency = ? AND status = 'confirmed'
+                WHERE currency = ?
                 """,
                 (currency,),
             ).fetchone()
@@ -817,8 +973,9 @@ def create_payment_order():
                 """
                 INSERT INTO payment_orders
                   (id, currency, address, derive_index, amount_units, amount_text,
-                   price_usd, start_height, status, created_at, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                   price_usd, start_height, status, created_at, expires_at,
+                   contact_email, claim_token_hash, claim_token_ciphertext, claim_origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     order_id,
@@ -831,6 +988,10 @@ def create_payment_order():
                     start_height,
                     now,
                     expires_at,
+                    contact_email,
+                    claim_token_hash,
+                    claim_token_ciphertext,
+                    request.host_url.rstrip("/"),
                 ),
             )
             order = connection.execute(
@@ -845,7 +1006,6 @@ def create_payment_order():
 
 @app.post("/api/payments/orders/<order_id>/sent")
 def mark_payment_sent(order_id: str):
-    now = int(time.time())
     with db_connection() as connection:
         order = connection.execute(
             "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
@@ -853,95 +1013,267 @@ def mark_payment_sent(order_id: str):
         if not order:
             return error_response("Payment request not found.", 404)
         if order["status"] == "pending":
-            if now >= order["expires_at"]:
-                connection.execute(
-                    "UPDATE payment_orders SET status = 'expired' WHERE id = ?",
-                    (order_id,),
-                )
-            else:
-                connection.execute(
-                    "UPDATE payment_orders SET status = 'checking', last_checked_at = 0 WHERE id = ?",
-                    (order_id,),
-                )
+            connection.execute(
+                "UPDATE payment_orders SET status = 'checking', last_checked_at = 0 WHERE id = ?",
+                (order_id,),
+            )
+    refreshed = refresh_payment_order(order_id)
+    return jsonify(public_payment_order(refreshed))
+
+
+def attempt_payment_confirmation_email(order_id: str) -> None:
+    now = int(time.time())
+    with db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
         order = connection.execute(
             "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
         ).fetchone()
-    return jsonify(public_payment_order(order))
+        if (
+            not order
+            or order["status"] != "confirmed"
+            or not order["contact_email"]
+            or order["confirmation_email_sent_at"]
+            or now - int(order["confirmation_email_attempted_at"] or 0)
+            < PAYMENT_EMAIL_RETRY_SECONDS
+        ):
+            return
+        connection.execute(
+            """
+            UPDATE payment_orders SET confirmation_email_attempted_at = ?
+            WHERE id = ? AND confirmation_email_sent_at IS NULL
+            """,
+            (now, order_id),
+        )
+        claim_token = decrypt_access_key(order["claim_token_ciphertext"] or "")
+        recipient = str(order["contact_email"])
+        origin = str(order["claim_origin"] or "").rstrip("/")
+    if not claim_token or not origin:
+        logging.getLogger("moraltown.payment").error(
+            "Cannot prepare the confirmation link for payment order %s.", order_id
+        )
+        return
+    claim_url = f"{origin}/claim?token={quote(claim_token, safe='')}"
+    try:
+        send_resend_payment_confirmation(recipient, claim_url, order_id)
+    except PaymentConfirmationEmailError:
+        logging.getLogger("moraltown.payment").warning(
+            "Confirmation email delivery failed for payment order %s.", order_id
+        )
+        return
+    with db_connection() as connection:
+        connection.execute(
+            """
+            UPDATE payment_orders SET confirmation_email_sent_at = ?
+            WHERE id = ? AND confirmation_email_sent_at IS NULL
+            """,
+            (int(time.time()), order_id),
+        )
 
 
-@app.get("/api/payments/orders/<order_id>")
-def get_payment_order(order_id: str):
+def refresh_payment_order(order_id: str) -> sqlite3.Row | None:
     now = int(time.time())
     with db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
         order = connection.execute(
             "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
         ).fetchone()
         if not order:
-            return error_response("Payment request not found.", 404)
-        if order["status"] == "pending" and now >= order["expires_at"]:
-            connection.execute(
-                "UPDATE payment_orders SET status = 'expired' WHERE id = ?",
-                (order_id,),
+            return None
+        if order["status"] == "confirmed":
+            pass
+        elif order["status"] != "expired":
+            if now - int(order["last_checked_at"]) < PAYMENT_CHECK_INTERVAL_SECONDS:
+                return order
+            reserved = connection.execute(
+                """
+                UPDATE payment_orders SET last_checked_at = ?
+                WHERE id = ? AND status IN ('pending', 'checking', 'confirming')
+                  AND last_checked_at <= ?
+                """,
+                (now, order_id, now - PAYMENT_CHECK_INTERVAL_SECONDS),
             )
+            if reserved.rowcount != 1:
+                return connection.execute(
+                    "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+                ).fetchone()
             order = connection.execute(
                 "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
             ).fetchone()
-        should_check = (
-            order["status"] in ("checking", "confirming")
-            and now - int(order["last_checked_at"]) >= 10
-        )
-        if should_check:
-            connection.execute(
-                "UPDATE payment_orders SET last_checked_at = ? WHERE id = ?",
-                (now, order_id),
-            )
+        else:
+            return order
 
-    if should_check:
-        try:
-            match = find_payment(
-                order["currency"],
-                order["address"],
-                int(order["amount_units"]),
-                int(order["start_height"]),
+    if order["status"] == "confirmed":
+        attempt_payment_confirmation_email(order_id)
+        with db_connection() as connection:
+            return connection.execute(
+                "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+            ).fetchone()
+
+    try:
+        match = find_payment(
+            order["currency"],
+            order["address"],
+            int(order["amount_units"]),
+            int(order["start_height"]),
+        )
+    except (PaymentProviderError, ValueError, TypeError, KeyError, OverflowError):
+        logging.getLogger("moraltown.payment").warning(
+            "Blockchain lookup failed for payment order %s.", order_id
+        )
+        with db_connection() as connection:
+            return connection.execute(
+                "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+            ).fetchone()
+
+    now = int(time.time())
+    with db_connection() as connection:
+        current = connection.execute(
+            "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+        ).fetchone()
+        if not current:
+            return None
+        if current["status"] == "confirmed":
+            order = current
+        elif match and match.get("txid"):
+            required = PAYMENT_ASSETS[current["currency"]]["confirmations"]
+            next_status = (
+                "confirmed"
+                if int(match["confirmations"]) >= required
+                else "confirming"
             )
-        except (PaymentProviderError, ValueError, TypeError, KeyError, OverflowError):
-            match = None
-        if match and match.get("txid"):
-            required = PAYMENT_ASSETS[order["currency"]]["confirmations"]
-            next_status = "confirmed" if match["confirmations"] >= required else "confirming"
-            with db_connection() as connection:
-                connection.execute(
-                    """
-                    UPDATE payment_orders
-                    SET status = ?, transaction_id = ?, confirmations = ?, received_units = ?
-                    WHERE id = ? AND status IN ('checking', 'confirming')
-                    """,
-                    (
-                        next_status,
-                        match["txid"],
-                        int(match["confirmations"]),
-                        order["amount_units"],
-                        order_id,
-                    ),
-                )
-        elif order["status"] == "confirming":
-            # A shallow confirmation can disappear in a chain reorganization.
-            # Never let an old confirmation count survive a failed re-check.
-            with db_connection() as connection:
-                connection.execute(
-                    """
-                    UPDATE payment_orders
-                    SET status = 'checking', transaction_id = NULL,
-                        confirmations = 0, received_units = '0'
-                    WHERE id = ? AND status = 'confirming'
-                    """,
-                    (order_id,),
-                )
+            connection.execute(
+                """
+                UPDATE payment_orders
+                SET status = ?, transaction_id = ?, confirmations = ?,
+                    received_units = ?
+                WHERE id = ? AND status IN ('pending', 'checking', 'confirming')
+                """,
+                (
+                    next_status,
+                    match["txid"],
+                    int(match["confirmations"]),
+                    current["amount_units"],
+                    order_id,
+                ),
+            )
+        elif now >= int(current["expires_at"]):
+            connection.execute(
+                """
+                UPDATE payment_orders SET status = 'expired',
+                    transaction_id = NULL, confirmations = 0, received_units = '0'
+                WHERE id = ? AND status IN ('pending', 'checking', 'confirming')
+                """,
+                (order_id,),
+            )
+        elif current["status"] == "confirming":
+            # A chain reorganization invalidates an earlier, shallow match.
+            connection.execute(
+                """
+                UPDATE payment_orders SET status = 'pending', transaction_id = NULL,
+                    confirmations = 0, received_units = '0'
+                WHERE id = ? AND status = 'confirming'
+                """,
+                (order_id,),
+            )
+        order = connection.execute(
+            "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
+        ).fetchone()
+    if order and order["status"] == "confirmed":
+        attempt_payment_confirmation_email(order_id)
         with db_connection() as connection:
             order = connection.execute(
                 "SELECT * FROM payment_orders WHERE id = ?", (order_id,)
             ).fetchone()
+    return order
+
+
+@app.get("/api/payments/orders/<order_id>")
+def get_payment_order(order_id: str):
+    order = refresh_payment_order(order_id)
+    if not order:
+        return error_response("Payment request not found.", 404)
     return jsonify(public_payment_order(order))
+
+
+@app.get("/api/payments/claims/validate")
+def validate_payment_claim():
+    token = str(request.args.get("token", "")).strip()
+    if len(token) > 128:
+        return jsonify({"valid": False})
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    with db_connection() as connection:
+        order = connection.execute(
+            """
+            SELECT status, claimed_at, claim_token_hash
+            FROM payment_orders WHERE claim_token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+    valid = bool(
+        token
+        and order
+        and order["status"] == "confirmed"
+        and order["claimed_at"] is None
+        and hmac.compare_digest(str(order["claim_token_hash"]), token_hash)
+    )
+    return jsonify({"valid": valid})
+
+
+def scan_payment_orders_once() -> None:
+    now = int(time.time())
+    with db_connection() as connection:
+        due_orders = connection.execute(
+            """
+            SELECT id FROM payment_orders
+            WHERE status IN ('pending', 'checking', 'confirming')
+              AND last_checked_at <= ?
+            ORDER BY created_at ASC LIMIT 20
+            """,
+            (now - PAYMENT_CHECK_INTERVAL_SECONDS,),
+        ).fetchall()
+        email_orders = connection.execute(
+            """
+            SELECT id FROM payment_orders
+            WHERE status = 'confirmed' AND contact_email IS NOT NULL
+              AND confirmation_email_sent_at IS NULL
+              AND confirmation_email_attempted_at <= ?
+            ORDER BY created_at ASC LIMIT 20
+            """,
+            (now - PAYMENT_EMAIL_RETRY_SECONDS,),
+        ).fetchall()
+    for row in due_orders:
+        refresh_payment_order(row["id"])
+    for row in email_orders:
+        attempt_payment_confirmation_email(row["id"])
+
+
+def payment_monitor_loop() -> None:
+    while True:
+        try:
+            scan_payment_orders_once()
+        except (sqlite3.Error, OSError):
+            logging.getLogger("moraltown.payment").exception(
+                "The automatic payment monitor encountered an error."
+            )
+        time.sleep(PAYMENT_MONITOR_INTERVAL_SECONDS)
+
+
+_payment_monitor_started = False
+_payment_monitor_start_lock = threading.Lock()
+
+
+def start_payment_monitor() -> None:
+    global _payment_monitor_started
+    with _payment_monitor_start_lock:
+        if _payment_monitor_started:
+            return
+        monitor = threading.Thread(
+            target=payment_monitor_loop,
+            daemon=True,
+            name="moraltown-payment-monitor",
+        )
+        monitor.start()
+        _payment_monitor_started = True
 
 
 @app.post("/api/auth/signup")
@@ -956,11 +1288,11 @@ def signup():
         )
     access_code = str(data.get("accessCode", "")).strip()
     purchase_token = str(data.get("purchaseToken", "")).strip()
-    free_access = bool(access_code) and hmac.compare_digest(
-        access_code.encode("utf-8"), FREE_ACCESS_CODE.encode("utf-8")
-    )
+    claim_token = str(data.get("claimToken", "")).strip()
+    free_access = bool(access_code) and accepts_free_access_code(access_code)
     purchase_order_id = purchase_token.split(".", 1)[0] if "." in purchase_token else ""
-    if not free_access and not purchase_order_id:
+    claim_token_hash = hashlib.sha256(claim_token.encode("utf-8")).hexdigest()
+    if not free_access and not (claim_token or purchase_order_id):
         return error_response("Enter a valid access code or complete the lifetime purchase.", 402)
 
     now = utc_now()
@@ -970,6 +1302,7 @@ def signup():
         "access_key_ciphertext": encrypt_access_key(access_key),
         "username": username,
         "email": mailbox_address(username),
+        "purchase_email": None,
         "email_changes_remaining": 2,
         "email_change_year": datetime.now(timezone.utc).year,
         "created_at": now,
@@ -978,30 +1311,64 @@ def signup():
     try:
         with db_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            order_id_to_claim = None
             if not free_access:
-                order = connection.execute(
-                    "SELECT * FROM payment_orders WHERE id = ?",
-                    (purchase_order_id,),
-                ).fetchone()
-                if (
-                    not order
-                    or order["status"] != "confirmed"
-                    or not order["transaction_id"]
-                    or order["claimed_at"] is not None
-                    or not valid_purchase_proof(
-                        purchase_token,
-                        purchase_order_id,
-                        order["transaction_id"],
-                        str(app.config["SECRET_KEY"]),
-                    )
-                ):
-                    return error_response("This confirmed payment cannot be used for account creation.", 402)
+                if claim_token:
+                    order = connection.execute(
+                        "SELECT * FROM payment_orders WHERE claim_token_hash = ?",
+                        (claim_token_hash,),
+                    ).fetchone()
+                    if (
+                        not order
+                        or order["status"] != "confirmed"
+                        or order["claimed_at"] is not None
+                        or not order["contact_email"]
+                        or not hmac.compare_digest(
+                            str(order["claim_token_hash"]), claim_token_hash
+                        )
+                    ):
+                        return error_response(
+                            "This account claim link is invalid or has already been used.",
+                            402,
+                        )
+                    if connection.execute(
+                        "SELECT 1 FROM users WHERE purchase_email = ? LIMIT 1",
+                        (order["contact_email"],),
+                    ).fetchone():
+                        return error_response(
+                            "This email already has a paid account. Use an access code to make another account.",
+                            409,
+                        )
+                    user["purchase_email"] = order["contact_email"]
+                    order_id_to_claim = order["id"]
+                else:
+                    order = connection.execute(
+                        "SELECT * FROM payment_orders WHERE id = ?",
+                        (purchase_order_id,),
+                    ).fetchone()
+                    if (
+                        not order
+                        or order["status"] != "confirmed"
+                        or not order["transaction_id"]
+                        or order["claimed_at"] is not None
+                        or not valid_purchase_proof(
+                            purchase_token,
+                            purchase_order_id,
+                            order["transaction_id"],
+                            str(app.config["SECRET_KEY"]),
+                        )
+                    ):
+                        return error_response(
+                            "This confirmed payment cannot be used for account creation.",
+                            402,
+                        )
+                    order_id_to_claim = order["id"]
             connection.execute(
                 """
                 INSERT INTO users
-                   (id, access_key_hash, access_key_ciphertext, username, email, email_changes_remaining,
+                   (id, access_key_hash, access_key_ciphertext, username, email, purchase_email, email_changes_remaining,
                    email_change_year, created_at, updated_at)
-                VALUES (:id, :access_key_hash, :access_key_ciphertext, :username, :email, :email_changes_remaining,
+                VALUES (:id, :access_key_hash, :access_key_ciphertext, :username, :email, :purchase_email, :email_changes_remaining,
                         :email_change_year, :created_at, :updated_at)
                 """,
                 user,
@@ -1027,13 +1394,15 @@ def signup():
                     now,
                 ),
             )
-            if not free_access:
+            if order_id_to_claim:
                 connection.execute(
                     "UPDATE payment_orders SET claimed_at = ? WHERE id = ? AND claimed_at IS NULL",
-                    (int(time.time()), purchase_order_id),
+                    (int(time.time()), order_id_to_claim),
                 )
     except sqlite3.IntegrityError:
-        return error_response("That access key or username is already in use.", 409)
+        return error_response(
+            "That access key, username, or paid email is already in use.", 409
+        )
     session.clear()
     session.permanent = True
     session["user_id"] = user["id"]
@@ -1416,4 +1785,5 @@ def frontend(path: str):
 init_db()
 
 if __name__ == "__main__":
+    start_payment_monitor()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))

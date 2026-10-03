@@ -33,6 +33,7 @@ import type {
   Message,
   MessageUpdate,
   Notification,
+  PaymentClaimValidation,
   PaymentOrder,
   PaymentOrderInput,
   ProfileUpdate,
@@ -42,7 +43,8 @@ import type {
   SignUpInput,
   Subscription,
   SubscriptionInput,
-  User
+  User,
+  ValidatePaymentClaimParams
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -362,6 +364,90 @@ export const useCreatePaymentOrder = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreatePaymentOrderMutationOptions(options));
     }
+
+export const getValidatePaymentClaimUrl = (params: ValidatePaymentClaimParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payments/claims/validate?${stringifiedParams}` : `/api/payments/claims/validate`
+}
+
+/**
+ * @summary Check whether a confirmed payment claim link is still usable
+ */
+export const validatePaymentClaim = async (params: ValidatePaymentClaimParams, options?: Parameters<typeof customFetch>[1]): Promise<PaymentClaimValidation> => {
+
+  return customFetch<PaymentClaimValidation>(getValidatePaymentClaimUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getValidatePaymentClaimQueryKey = (params?: ValidatePaymentClaimParams,) => {
+    return [
+    `/api/payments/claims/validate`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getValidatePaymentClaimQueryOptions = <TData = Awaited<ReturnType<typeof validatePaymentClaim>>, TError = ErrorType<unknown>>(params: ValidatePaymentClaimParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof validatePaymentClaim>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getValidatePaymentClaimQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof validatePaymentClaim>>> = ({ signal }) => validatePaymentClaim(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof validatePaymentClaim>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ValidatePaymentClaimQueryResult = NonNullable<Awaited<ReturnType<typeof validatePaymentClaim>>>
+export type ValidatePaymentClaimQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check whether a confirmed payment claim link is still usable
+ */
+
+export function useValidatePaymentClaim<TData = Awaited<ReturnType<typeof validatePaymentClaim>>, TError = ErrorType<unknown>>(
+ params: ValidatePaymentClaimParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof validatePaymentClaim>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getValidatePaymentClaimQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetPaymentOrderUrl = (orderId: string,) => {
 

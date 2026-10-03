@@ -24,6 +24,8 @@ export interface SignUpInput {
   accessCode?: string;
   /** @maxLength 256 */
   purchaseToken?: string;
+  /** @maxLength 128 */
+  claimToken?: string;
 }
 
 export interface AccessCodeCheckInput {
@@ -47,6 +49,15 @@ export const PaymentOrderInputCurrency = {
 
 export interface PaymentOrderInput {
   currency: PaymentOrderInputCurrency;
+  /**
+     * @maxLength 254
+     * @pattern ^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$
+     */
+  email: string;
+}
+
+export interface PaymentClaimValidation {
+  valid: boolean;
 }
 
 export type PaymentOrderCurrency = typeof PaymentOrderCurrency[keyof typeof PaymentOrderCurrency];
@@ -83,6 +94,7 @@ export interface PaymentOrder {
   /** @nullable */
   transactionId?: string | null;
   purchaseToken?: string;
+  confirmationEmailSent: boolean;
 }
 
 export interface SignInInput {
@@ -223,6 +235,14 @@ export interface InboundWebhook {
   subject: string;
   text: string;
 }
+
+export type ValidatePaymentClaimParams = {
+/**
+ * @minLength 1
+ * @maxLength 128
+ */
+token: string;
+};
 
 export type ListMessagesParams = {
 folder?: string;

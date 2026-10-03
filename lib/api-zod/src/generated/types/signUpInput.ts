@@ -21,4 +21,6 @@ export interface SignUpInput {
   accessCode?: string;
   /** @maxLength 256 */
   purchaseToken?: string;
+  /** @maxLength 128 */
+  claimToken?: string;
 }

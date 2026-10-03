@@ -9,4 +9,9 @@ import type { PaymentOrderInputCurrency } from './paymentOrderInputCurrency';
 
 export interface PaymentOrderInput {
   currency: PaymentOrderInputCurrency;
+  /**
+     * @maxLength 254
+     * @pattern ^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$
+     */
+  email: string;
 }
