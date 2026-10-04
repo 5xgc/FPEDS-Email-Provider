@@ -191,8 +191,8 @@
 
 .moraltown .brand-mark {
   display: block;
-  width: 132px;
-  height: 64px;
+  width: 116px;
+  height: 56px;
   flex: 0 0 auto;
   overflow: hidden;
   border-radius: 5px;
@@ -212,6 +212,43 @@
 .moraltown .nav-active { background: hsl(var(--primary) / .14); color: hsl(var(--accent-foreground)); }
 .moraltown .compose-cta { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 8px 22px hsl(var(--primary) / .20); }
 .moraltown .compose-cta:hover { background: hsl(0 78% 48%); }
+.moraltown .workspace-header {
+  height: calc(4rem + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.moraltown .workspace-sidebar {
+  top: calc(4rem + env(safe-area-inset-top, 0px));
+  max-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+}
+.moraltown-privacy-mode [data-private-email] {
+  filter: blur(.32rem);
+  transition: filter .2s ease;
+}
+.moraltown button,
+.moraltown a,
+.moraltown [role="button"] {
+  transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .2s ease, background-color .2s ease;
+}
+.moraltown .scroll-reveal-item:hover { transform: translateX(2px); }
+.moraltown input:focus-visible,
+.moraltown textarea:focus-visible {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / .15);
+}
+@media (hover: hover) {
+  .moraltown button:not(:disabled):hover { transform: translateY(-1px); }
+  .moraltown button:not(:disabled):active { transform: scale(.98); }
+}
+@media (min-width: 768px) {
+  .moraltown .workspace-header {
+    height: 72px;
+    padding-top: 0;
+  }
+  .moraltown .workspace-sidebar {
+    top: 72px;
+    height: calc(100dvh - 72px);
+    max-height: calc(100dvh - 72px);
+  }
+}
 
 .landing-page { overflow: clip; }
 .landing-header { background: hsl(0 0% 5% / .88); backdrop-filter: blur(18px); }
@@ -254,7 +291,16 @@
 @media (max-width: 767px) {
   .workspace-sidebar { max-height: calc(100dvh - 4rem); overflow-y: auto; }
   .landing-hero-art { min-height: 320px; }
+  .moraltown main > .mx-auto { padding-top: .5rem; }
+  .moraltown .brand-mark { width: 98px; height: 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+.moraltown-reduce-motion *,
+.moraltown-reduce-motion *::before,
+.moraltown-reduce-motion *::after {
+  animation: none !important;
+  scroll-behavior: auto !important;
+  transition: none !important;
 }

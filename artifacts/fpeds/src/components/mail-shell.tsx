@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, Star, Tag, X } from 'lucide-react';
-import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut, getGetCurrentUserQueryKey } from '@workspace/api-client-react';
+import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut } from '@workspace/api-client-react';
 import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
+import { PREFERENCES_CHANGED_EVENT, readPreference } from '@/lib/preferences';
 export function LogoMark() {
   return <BrandLogo />;
 }
@@ -12,6 +13,7 @@ export function LogoMark() {
 export function MailShell({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
+  const [autoSignOut, setAutoSignOut] = useState(() => readPreference('autoSignOut'));
   const queryClient = useQueryClient();
   const userQuery = useGetCurrentUser();
   const summaryQuery = useGetMailboxSummary();
@@ -23,7 +25,29 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   const sendingAddress = `${username}@fpeds.2bd.net`;
   const receivingAddress = userQuery.data?.email ?? `${username}@fpdf.2bd.net`;
   const close = () => setOpen(false);
-  const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() }); setLocation('/auth'); } });
+  const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.clear(); setLocation('/auth?mode=signup'); } });
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
+  useEffect(() => {
+    const refreshPreference = () => setAutoSignOut(readPreference('autoSignOut'));
+    window.addEventListener(PREFERENCES_CHANGED_EVENT, refreshPreference);
+    return () => window.removeEventListener(PREFERENCES_CHANGED_EVENT, refreshPreference);
+  }, []);
+  useEffect(() => {
+    if (!autoSignOut) return;
+    let timeout: number;
+    const resetTimeout = () => {
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => logoutRef.current(), 5 * 60 * 1000);
+    };
+    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, resetTimeout, { passive: true }));
+    resetTimeout();
+    return () => {
+      window.clearTimeout(timeout);
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, resetTimeout));
+    };
+  }, [autoSignOut]);
   const nav = [
     { href: '/inbox', label: 'Inbox', icon: Inbox, count: summary?.unread },
     { href: '/starred', label: 'Starred', icon: Star },
@@ -36,31 +60,31 @@ export function MailShell({ children }: { children: React.ReactNode }) {
     : location.split('/')[1] || 'inbox';
   return (
     <div className="moraltown relative min-h-[100dvh] overflow-hidden text-foreground">
-      <header className="workspace-header glass relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-hidden border-x-0 border-t-0 px-4 sm:px-5 md:h-[72px] md:px-8">
-        <Link href="/inbox" onClick={close} className="flex min-w-0 shrink-0 items-center gap-3" data-testid="link-logo">
+      <header className="workspace-header glass relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-visible border-x-0 border-t-0 px-4 sm:px-5 md:h-[72px] md:px-8">
+        <Link href="/inbox" onClick={close} className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2" data-testid="link-logo">
           <LogoMark />
         </Link>
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <div className="hidden min-w-0 max-w-[430px] text-right md:block">
-            <p className="truncate font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
-            <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
+          <div className="hidden min-w-0 max-w-[430px] text-right lg:block">
+            <p className="truncate font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span data-private-email className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
+            <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span data-private-email className="ml-1 inline-block max-w-[220px] truncate align-bottom normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
           </div>
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
-          <button onClick={() => setOpen(!open)} className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
+          <button onClick={() => setOpen(!open)} className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
         </div>
-          {open && <div className="absolute right-4 top-12 z-50 hidden w-48 rounded-xl border border-white/10 bg-[#121212]/95 p-2 shadow-2xl backdrop-blur-xl md:right-5 md:top-14 md:block">
+          {open && <div className="absolute right-4 top-12 z-50 w-48 rounded-xl border border-white/10 bg-[#121212]/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
           <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"><Settings className="h-4 w-4" /> Settings</Link>
           <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /> Sign out</Button>
         </div>}
       </header>
        <div className="relative z-20 flex min-w-0">
             <aside className={`workspace-sidebar glass fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] shrink-0 border-y-0 border-l-0 p-4 backdrop-blur-2xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-           <div className="mb-5 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
-           <div className="mb-6 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
-             <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span className="ml-1 normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
-             <p className="mt-2 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span className="ml-1 normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
-           </div>
-          <Link href="/compose" onClick={close} className="compose-cta mb-7 flex h-12 items-center justify-center gap-2 rounded-xl font-semibold transition-transform hover:-translate-y-0.5" data-testid="link-compose"><PenLine className="h-4 w-4" /> Compose</Link>
+            <div className="mb-3 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
+           <Link href="/compose" onClick={close} className="compose-cta mb-4 flex h-11 items-center justify-center gap-2 rounded-xl font-semibold transition-transform hover:-translate-y-0.5 md:mb-6 md:h-12" data-testid="link-compose"><PenLine className="h-4 w-4" /> Compose</Link>
+            <div className="mb-4 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
+              <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span data-private-email className="ml-1 break-all normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
+              <p className="mt-2 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span data-private-email className="ml-1 break-all normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
+            </div>
           <nav className="space-y-1" aria-label="Mailbox">
             <p className="mb-3 px-3 font-mono text-[9px] uppercase tracking-[.22em] text-muted-foreground">Mailbox</p>
              {nav.map(item => { const Icon = item.icon; const itemFolder = item.label.toLowerCase(); const active = selectedFolder === itemFolder; return <Link key={item.label} href={item.href} onClick={close} className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${active ? 'nav-active font-semibold' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`} data-testid={`link-folder-${item.label.toLowerCase()}`}><span className="flex items-center gap-3"><Icon className={`h-4 w-4 ${active ? 'text-primary' : ''}`} />{item.label}</span>{item.count ? <span className="font-mono text-[10px]">{item.count}</span> : null}</Link>; })}

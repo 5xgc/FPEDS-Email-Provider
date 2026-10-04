@@ -38,7 +38,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { MailShell } from '@/components/mail-shell';
+import { AccountDeletionSettings } from '@/components/settings/account-deletion';
+import { PwaInstallCard } from '@/components/settings/pwa-install-card';
 import { createCredentialFile, downloadCredentialFile } from '@/lib/secure-credential-file';
+import { readPreference, writePreference } from '@/lib/preferences';
 
 const fmt = (date: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date));
@@ -100,7 +103,9 @@ export default function SettingsPage() {
   const [accessKey, setAccessKey] = useState('');
   const [keyVisible, setKeyVisible] = useState(false);
   const [exportPassphrase, setExportPassphrase] = useState('');
-  const [privacy, setPrivacy] = useState({ read: true, blocked: true, alerts: true });
+  const [anonymousMode, setAnonymousMode] = useState(() => readPreference('privacyMode'));
+  const [reduceMotion, setReduceMotion] = useState(() => readPreference('reduceMotion'));
+  const [autoSignOut, setAutoSignOut] = useState(() => readPreference('autoSignOut'));
   const requestedPanel = new URLSearchParams(location.split('?')[1] ?? '').get('panel');
 
   useEffect(() => {
@@ -193,12 +198,12 @@ export default function SettingsPage() {
 
   return (
     <MailShell>
-      <div className="mx-auto w-full max-w-[1180px] p-4 sm:p-6 md:p-8">
-        <header className="mb-7 flex flex-col justify-between gap-5 sm:mb-9 md:flex-row md:items-end">
+      <div className="mx-auto w-full max-w-[1180px] px-3 pb-6 pt-2 sm:px-6 sm:pb-8 sm:pt-3 md:px-8">
+        <header className="mb-5 flex flex-col justify-between gap-4 sm:mb-7 sm:gap-5 md:flex-row md:items-end">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[.22em] text-primary">Control room</p>
-            <h1 className="mt-2 font-display text-4xl tracking-[-.05em] sm:text-6xl">Settings<span className="text-primary">.</span></h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Tune your mailbox, protect your access, and keep the room yours.</p>
+            <h1 className="mt-1 font-display text-4xl tracking-[-.05em] sm:mt-2 sm:text-6xl">Settings<span className="text-primary">.</span></h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground sm:mt-3">Tune your mailbox, protect your access, and keep the room yours.</p>
           </div>
             <div className="flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[.06] px-3 py-2 text-xs text-primary">
              <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Workspace ready
@@ -219,7 +224,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Receiving address</p>
-                <p className="mt-3 break-all font-mono text-sm text-foreground/85">{user.data?.email ?? '—'}</p>
+                <p data-private-email className="mt-3 break-all font-mono text-sm text-foreground/85">{user.data?.email ?? '—'}</p>
                 <p className="mt-2 text-xs text-muted-foreground">Address changes remaining: <span className="text-primary">{user.data?.emailChangesRemaining ?? 0}</span></p>
               </div>
             </div>
@@ -243,18 +248,20 @@ export default function SettingsPage() {
             </div>
           </SettingsCard>
 
-          <SettingsCard icon={Shield} eyebrow="Workspace preferences" title="Quiet by default" description="These switches are local to this page and do not change email delivery or server-side preferences.">
+          <SettingsCard icon={Shield} eyebrow="Privacy controls" title="Anonymous mode" description="MoralTown does not add optional analytics. This mode masks rendered account and sender addresses on this device; it cannot hide network, provider, or server records.">
             <div className="divide-y divide-white/[.07]">
-              {[
-                ['read', 'Read receipts', 'Show senders when you open their message.'],
-                ['blocked', 'Block suspicious mail', 'Keep high spam-score messages out of your inbox.'],
-                ['alerts', 'Quiet notifications', 'Only notify for messages that need a response.'],
-              ].map(([key, title, desc]) => (
-                <div key={key} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-                  <div><p className="text-sm font-medium">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</p></div>
-                  <Switch checked={privacy[key as keyof typeof privacy]} onCheckedChange={(checked) => setPrivacy({ ...privacy, [key]: checked })} data-testid={`switch-${key}`} />
-                </div>
-              ))}
+              <div className="flex items-center justify-between gap-4 py-4 first:pt-0">
+                <div><p className="text-sm font-medium">Mask email addresses</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Blur account and sender addresses in the interface only.</p></div>
+                <Switch checked={anonymousMode} onCheckedChange={(checked) => { setAnonymousMode(checked); writePreference('privacyMode', checked); }} data-testid="switch-anonymous-mode" />
+              </div>
+              <div className="flex items-center justify-between gap-4 py-4">
+                <div><p className="text-sm font-medium">Reduce motion</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Turn off decorative movement. Your device’s reduced-motion setting is also respected.</p></div>
+                <Switch checked={reduceMotion} onCheckedChange={(checked) => { setReduceMotion(checked); writePreference('reduceMotion', checked); }} data-testid="switch-reduce-motion" />
+              </div>
+              <div className="flex items-center justify-between gap-4 py-4 last:pb-0">
+                <div><p className="text-sm font-medium">Automatic sign-out</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Sign out after five minutes without activity. Unsaved compose text may be lost.</p></div>
+                <Switch checked={autoSignOut} onCheckedChange={(checked) => { setAutoSignOut(checked); writePreference('autoSignOut', checked); }} data-testid="switch-auto-signout" />
+              </div>
             </div>
           </SettingsCard>
 
@@ -265,7 +272,7 @@ export default function SettingsPage() {
               <Button onClick={addSub} disabled={createSubscription.isPending} data-testid="button-add-subscription"><Plus className="h-4 w-4" /> Add</Button>
             </div>
             <div className="mt-5 space-y-2">
-              {(subs.data ?? []).length === 0 ? <p className="rounded-xl bg-white/[.025] px-4 py-5 text-center text-xs text-muted-foreground">No subscriptions yet.</p> : (subs.data ?? []).map((sub) => <div key={sub.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[.035] px-4 py-3"><div className="min-w-0"><p className="text-sm">{sub.label}</p><p className="truncate font-mono text-[10px] text-muted-foreground">{sub.email}</p></div><span className={`font-mono text-[9px] uppercase tracking-[.14em] ${sub.active ? 'text-primary' : 'text-muted-foreground'}`}>{sub.active ? 'Active' : 'Paused'}</span></div>)}
+              {(subs.data ?? []).length === 0 ? <p className="rounded-xl bg-white/[.025] px-4 py-5 text-center text-xs text-muted-foreground">No subscriptions yet.</p> : (subs.data ?? []).map((sub) => <div key={sub.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[.035] px-4 py-3"><div className="min-w-0"><p className="text-sm">{sub.label}</p><p data-private-email className="truncate font-mono text-[10px] text-muted-foreground">{sub.email}</p></div><span className={`font-mono text-[9px] uppercase tracking-[.14em] ${sub.active ? 'text-primary' : 'text-muted-foreground'}`}>{sub.active ? 'Active' : 'Paused'}</span></div>)}
             </div>
           </SettingsCard>
 
@@ -280,6 +287,10 @@ export default function SettingsPage() {
           <SettingsCard icon={Bell} eyebrow="Activity" title="Notifications" description="Recent events from your MoralTown workspace." className={requestedPanel === 'notifications' ? 'ring-1 ring-primary/40' : ''}>
             {(notifications.data ?? []).length === 0 ? <p className="rounded-xl bg-white/[.025] px-4 py-6 text-center text-xs text-muted-foreground">No new notifications.</p> : <div className="divide-y divide-white/[.07]">{(notifications.data ?? []).map((note) => <button key={note.id} onClick={() => markNotification.mutate({ id: note.id }, { onSuccess: () => client.invalidateQueries({ queryKey: getListNotificationsQueryKey() }) })} className="flex w-full gap-3 py-4 text-left first:pt-0 last:pb-0" data-testid={`button-notification-${note.id}`}><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${note.isRead ? 'bg-muted' : 'bg-primary'}`} /><span className="min-w-0"><p className="text-sm font-medium">{note.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{note.message}</p><p className="mt-2 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{fmt(note.createdAt)} · {note.isRead ? 'Read' : 'Mark read'}</p></span></button>)}</div>}
           </SettingsCard>
+          <PwaInstallCard />
+        </div>
+        <div className="mt-4">
+          <AccountDeletionSettings />
         </div>
         <div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5 text-primary" /> Email delivery relies on external mail services and networks, each with its own handling practices.</div>
       </div>

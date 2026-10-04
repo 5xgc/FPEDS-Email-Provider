@@ -4,7 +4,7 @@ services:
     runtime: python
     rootDir: .
     buildCommand: pip install -r requirements.txt && pnpm install --frozen-lockfile && PORT=10000 BASE_PATH=/ pnpm --filter @workspace/fpeds run build && test -f dist/public/index.html
-    startCommand: python -m gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: python -m gunicorn render_app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --worker-class gthread --timeout 120
     healthCheckPath: /api/healthz
     envVars:
       - key: SESSION_SECRET
@@ -28,6 +28,8 @@ services:
       - key: MAILGUN_SIGNING_KEY
         sync: false
       - key: GROQ_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
         sync: false
     disk:
       name: fpeds-mail-data

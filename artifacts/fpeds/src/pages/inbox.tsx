@@ -87,7 +87,7 @@ function MessageRow({ message, select }: { message: Message; select: (id: string
         {initials(message.from)}
       </span>
       <span className="min-w-0">
-        <span className={`block truncate text-sm ${!message.isRead ? 'font-bold text-foreground' : 'text-muted-foreground'}`}>
+        <span data-private-email className={`block truncate text-sm ${!message.isRead ? 'font-bold text-foreground' : 'text-muted-foreground'}`}>
           {message.from}
         </span>
         <span className="mt-1 block truncate text-xs text-muted-foreground sm:hidden">{message.subject}</span>
@@ -185,8 +185,8 @@ export default function InboxPage({ folder }: { folder: string }) {
 
   return (
     <MailShell>
-      <div className="mx-auto max-w-[1180px] p-4 sm:p-6 md:p-8">
-        <div className="mb-6 flex flex-col justify-between gap-4 sm:mb-7 sm:gap-5 md:flex-row md:items-end">
+      <div className="mx-auto max-w-[1180px] px-3 pb-6 pt-2 sm:px-6 sm:pb-8 sm:pt-3 md:px-8">
+        <div className="mb-4 flex flex-col justify-between gap-4 sm:mb-6 sm:gap-5 md:flex-row md:items-end">
           <div className="animate-enter">
             <p className="font-mono text-[10px] uppercase tracking-[.2em] text-primary">Your quiet space</p>
             <h1 className="mt-2 font-display text-3xl tracking-[-.04em] sm:text-4xl">

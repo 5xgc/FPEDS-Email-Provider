@@ -7,6 +7,7 @@ message routing. Groq is optional for spam scoring.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import hmac
 import html
 import os
@@ -22,7 +23,7 @@ from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 import json
 import logging
 import time
@@ -66,6 +67,16 @@ BREVO_SENDER_DOMAIN = (
 if not re.fullmatch(r"[a-z0-9.-]+", BREVO_SENDER_DOMAIN):
     raise RuntimeError("BREVO_SENDER_DOMAIN must be a valid domain name.")
 
+IS_PRODUCTION = (
+    os.environ.get("FLASK_ENV") == "production"
+    or os.environ.get("RENDER", "").lower() == "true"
+)
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "").strip()
+if IS_PRODUCTION and len(SESSION_SECRET) < 32:
+    raise RuntimeError(
+        "Set SESSION_SECRET to a random value of at least 32 characters in production."
+    )
+
 app = Flask(
     __name__,
     static_folder=str(STATIC_DIR) if STATIC_DIR.exists() else None,
@@ -75,7 +86,7 @@ logging.getLogger("gunicorn.access").disabled = True
 logging.getLogger("gunicorn.error").disabled = True
 app.logger.disabled = True
 app.config.update(
-    SECRET_KEY=os.environ.get("SESSION_SECRET", "local-development-session-secret"),
+    SECRET_KEY=SESSION_SECRET or "local-development-session-secret",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_NAME="fpeds_session",
@@ -122,7 +133,8 @@ def init_db() -> None:
               email_changes_remaining INTEGER NOT NULL DEFAULT 2,
               email_change_year INTEGER NOT NULL,
               created_at TEXT NOT NULL,
-              updated_at TEXT NOT NULL
+              updated_at TEXT NOT NULL,
+              deletion_requested_at INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS messages (
@@ -200,6 +212,18 @@ def init_db() -> None:
 
             CREATE UNIQUE INDEX IF NOT EXISTS payment_orders_currency_amount_idx
               ON payment_orders(currency, amount_units);
+
+            CREATE TABLE IF NOT EXISTS account_deletion_jobs (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              token_hash TEXT NOT NULL UNIQUE,
+              started_at INTEGER NOT NULL,
+              completes_at INTEGER NOT NULL,
+              next_check_at INTEGER NOT NULL,
+              checks_done INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS account_deletion_jobs_due_idx
+              ON account_deletion_jobs(next_check_at);
             """
         )
         try:
@@ -208,6 +232,7 @@ def init_db() -> None:
             if "duplicate column name" not in str(exc).lower():
                 raise
         migrations = (
+            ("users", "deletion_requested_at", "INTEGER"),
             ("users", "purchase_email", "TEXT"),
             ("payment_orders", "contact_email", "TEXT"),
             ("payment_orders", "claim_token_hash", "TEXT"),
@@ -237,7 +262,9 @@ def init_db() -> None:
         )
         # Keep existing accounts aligned when the mailbox domain is changed
         # from the original FPEDS domain to the configured receiving domain.
-        for row in connection.execute("SELECT id, username, email FROM users").fetchall():
+        for row in connection.execute(
+            "SELECT id, username, email FROM users WHERE deletion_requested_at IS NULL"
+        ).fetchall():
             expected_email = mailbox_address(row["username"])
             if row["email"] != expected_email:
                 connection.execute(
@@ -270,6 +297,9 @@ def check_access_key(access_key: str, stored: str) -> bool:
         return hmac.compare_digest(candidate.hex(), digest_hex)
     except (TypeError, ValueError):
         return False
+
+
+ACCOUNT_DELETION_SECONDS = 4 * 60
 
 
 def credential_fernet() -> Fernet:
@@ -351,7 +381,10 @@ def current_user() -> sqlite3.Row | None:
     if not user_id:
         return None
     with db_connection() as connection:
-        return connection.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return connection.execute(
+            "SELECT * FROM users WHERE id = ? AND deletion_requested_at IS NULL",
+            (user_id,),
+        ).fetchone()
 
 
 def require_user() -> sqlite3.Row:
@@ -815,7 +848,14 @@ def add_privacy_headers(response):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    if IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
     if request.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store, max-age=0"
     if request.path.startswith(
@@ -1258,6 +1298,25 @@ def payment_monitor_loop() -> None:
         time.sleep(PAYMENT_MONITOR_INTERVAL_SECONDS)
 
 
+def run_database_singleton(service_name: str, target) -> None:
+    """Run one shared-database background service across local/Gunicorn processes."""
+    lock_path = DATABASE_PATH.with_name(f".{DATABASE_PATH.name}.{service_name}.lock")
+    while True:
+        try:
+            with lock_path.open("a") as lock_file:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    time.sleep(2)
+                    continue
+                target()
+        except Exception:
+            logging.getLogger(f"moraltown.{service_name}").exception(
+                "A shared-database background service stopped unexpectedly."
+            )
+            time.sleep(2)
+
+
 _payment_monitor_started = False
 _payment_monitor_start_lock = threading.Lock()
 
@@ -1268,12 +1327,95 @@ def start_payment_monitor() -> None:
         if _payment_monitor_started:
             return
         monitor = threading.Thread(
-            target=payment_monitor_loop,
+            target=run_database_singleton,
+            args=("payment-monitor", payment_monitor_loop),
             daemon=True,
             name="moraltown-payment-monitor",
         )
         monitor.start()
         _payment_monitor_started = True
+
+
+def process_due_account_deletions(now: int | None = None) -> int:
+    """Scrub due accounts and remove their temporary tombstones."""
+    timestamp = int(time.time()) if now is None else int(now)
+    processed = 0
+    while True:
+        with db_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            job = connection.execute(
+                """
+                SELECT id, user_id, completes_at
+                FROM account_deletion_jobs
+                WHERE next_check_at <= ?
+                ORDER BY started_at
+                LIMIT 1
+                """,
+                (timestamp,),
+            ).fetchone()
+            if not job:
+                break
+
+            user_id = job["user_id"]
+            # Repeat the account-scoped sweep while the job is active; foreign
+            # key cascades provide a final safety net when the tombstone drops.
+            for table in ("messages", "folders", "notifications", "subscriptions"):
+                connection.execute(
+                    f"DELETE FROM {table} WHERE user_id = ?", (user_id,)
+                )
+
+            if timestamp >= int(job["completes_at"]):
+                connection.execute(
+                    "DELETE FROM users WHERE id = ? AND deletion_requested_at IS NOT NULL",
+                    (user_id,),
+                )
+                connection.execute(
+                    "DELETE FROM account_deletion_jobs WHERE id = ?", (job["id"],)
+                )
+            else:
+                connection.execute(
+                    """
+                    UPDATE account_deletion_jobs
+                    SET next_check_at = ?, checks_done = checks_done + 1
+                    WHERE id = ?
+                    """,
+                    (
+                        min(timestamp + 30, int(job["completes_at"])),
+                        job["id"],
+                    ),
+                )
+            processed += 1
+    return processed
+
+
+def account_deletion_loop() -> None:
+    while True:
+        try:
+            process_due_account_deletions()
+        except sqlite3.Error:
+            logging.getLogger("moraltown.account_deletion").exception(
+                "The account deletion worker encountered a database error."
+            )
+        time.sleep(1)
+
+
+_account_deletion_worker_started = False
+_account_deletion_worker_lock = threading.Lock()
+
+
+def start_account_deletion_worker() -> None:
+    global _account_deletion_worker_started
+    with _account_deletion_worker_lock:
+        if _account_deletion_worker_started:
+            return
+        worker = threading.Thread(
+            target=run_database_singleton,
+            args=("account-deletion", account_deletion_loop),
+            daemon=True,
+            name="moraltown-account-deletion",
+        )
+        worker.start()
+        _account_deletion_worker_started = True
 
 
 @app.post("/api/auth/signup")
@@ -1416,7 +1558,9 @@ def signin():
     if not valid_access_key(access_key):
         return error_response("Access key rejected.", 401)
     with db_connection() as connection:
-        user = connection.execute("SELECT * FROM users").fetchall()
+        user = connection.execute(
+            "SELECT * FROM users WHERE deletion_requested_at IS NULL"
+        ).fetchall()
     matching = next((row for row in user if check_access_key(access_key, row["access_key_hash"])), None)
     if not matching:
         return error_response("Access key rejected.", 401)
@@ -1457,6 +1601,163 @@ def rotate_access_key():
 def signout():
     session.clear()
     return ("", 204)
+
+
+@app.post("/api/account/deletion")
+def request_account_deletion():
+    origin = request.headers.get("Origin", "")
+    parsed_origin = urlsplit(origin)
+    allowed_schemes = {"http", "https"} if not IS_PRODUCTION else {"https"}
+    if (
+        not parsed_origin.netloc
+        or parsed_origin.netloc.lower() != request.host.lower()
+        or parsed_origin.scheme not in allowed_schemes
+    ):
+        return error_response("A same-origin request is required.", 403)
+
+    user = current_user()
+    if not user:
+        return error_response("Sign in required.", 401)
+
+    body = request.get_json(silent=True)
+    access_key = str(body.get("accessKey", "") if isinstance(body, dict) else "").strip()
+    if not valid_access_key(access_key) or not check_access_key(
+        access_key, user["access_key_hash"]
+    ):
+        return error_response(
+            "The current access key is required to delete this account.", 403
+        )
+
+    now = int(time.time())
+    deletion_token = secrets.token_urlsafe(32)
+    deletion_id = new_id()
+    tombstone_username = f"deleted-{new_id()}"
+    tombstone_email = f"{tombstone_username}@invalid.invalid"
+
+    with db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        current = connection.execute(
+            "SELECT * FROM users WHERE id = ? AND deletion_requested_at IS NULL",
+            (user["id"],),
+        ).fetchone()
+        if not current:
+            return error_response("This account is already being deleted.", 409)
+
+        private_emails = sorted(
+            {
+                value.strip()
+                for value in (current["email"], current["purchase_email"])
+                if value and value.strip()
+            }
+        )
+        for table in ("messages", "folders", "notifications", "subscriptions"):
+            connection.execute(
+                f"DELETE FROM {table} WHERE user_id = ?", (current["id"],)
+            )
+
+        if private_emails:
+            placeholders = ",".join("?" for _ in private_emails)
+            connection.execute(
+                f"""
+                UPDATE payment_orders
+                SET contact_email = NULL,
+                    claim_token_hash = NULL,
+                    claim_token_ciphertext = NULL,
+                    claim_origin = NULL,
+                    confirmation_email_sent_at = NULL,
+                    confirmation_email_attempted_at = 0
+                WHERE contact_email IN ({placeholders})
+                """,
+                private_emails,
+            )
+
+        connection.execute(
+            """
+            UPDATE users
+            SET access_key_hash = ?, access_key_ciphertext = NULL,
+                username = ?, email = ?, purchase_email = NULL,
+                email_changes_remaining = 0, deletion_requested_at = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                f"revoked${new_id()}",
+                tombstone_username,
+                tombstone_email,
+                now,
+                utc_now(),
+                current["id"],
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO account_deletion_jobs
+              (id, user_id, token_hash, started_at, completes_at,
+               next_check_at, checks_done)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+            """,
+            (
+                deletion_id,
+                current["id"],
+                hashlib.sha256(deletion_token.encode("utf-8")).hexdigest(),
+                now,
+                now + ACCOUNT_DELETION_SECONDS,
+                min(now + 30, now + ACCOUNT_DELETION_SECONDS),
+            ),
+        )
+
+    session.clear()
+    response = jsonify(
+        {
+            "status": "running",
+            "deletionToken": deletion_token,
+            "startedAt": now,
+            "completesAt": now + ACCOUNT_DELETION_SECONDS,
+            "durationSeconds": ACCOUNT_DELETION_SECONDS,
+        }
+    )
+    response.status_code = 202
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+@app.get("/api/account/deletion/status")
+def account_deletion_status():
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        return error_response("Deletion status token required.", 401)
+    token = authorization.removeprefix("Bearer ").strip()
+    if len(token) < 32:
+        return error_response("Deletion status token rejected.", 401)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    with db_connection() as connection:
+        job = connection.execute(
+            """
+            SELECT started_at, completes_at, checks_done
+            FROM account_deletion_jobs WHERE token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+    if not job:
+        response = jsonify(
+            {"status": "complete", "remainingSeconds": 0, "checksDone": 0}
+        )
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
+    now = int(time.time())
+    response = jsonify(
+        {
+            "status": "running",
+            "startedAt": int(job["started_at"]),
+            "completesAt": int(job["completes_at"]),
+            "remainingSeconds": max(0, int(job["completes_at"]) - now),
+            "checksDone": int(job["checks_done"]),
+        }
+    )
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @app.get("/api/auth/me")
@@ -1786,4 +2087,5 @@ init_db()
 
 if __name__ == "__main__":
     start_payment_monitor()
+    start_account_deletion_worker()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))

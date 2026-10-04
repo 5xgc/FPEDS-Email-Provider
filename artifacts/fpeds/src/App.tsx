@@ -11,6 +11,7 @@ import InboxPage from '@/pages/inbox';
 import NotFound from '@/pages/not-found';
 import SettingsPage from '@/pages/settings';
 import { Route, Switch, useLocation, useRoute, Router as WouterRouter } from 'wouter';
+import { syncDocumentPreferences } from '@/lib/preferences';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 20_000, retry: 1 } } });
 
@@ -102,6 +103,12 @@ function PageMetadata() {
 }
 
 function App() {
+  useEffect(() => {
+    const sync = () => syncDocumentPreferences();
+    sync();
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, []);
   return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><PageMetadata /><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
