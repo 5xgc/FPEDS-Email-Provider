@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { readCredentialFile } from '@/lib/secure-credential-file';
 import { solveCaptchaWork } from '@/lib/captcha-work';
+import { LanguagePicker } from '@/components/language-picker';
 
 type SecurityChallenge = { token: string; question: string; expiresAt: number; workBits: number };
 
@@ -322,6 +323,7 @@ export default function AuthPage() {
           </section>
         </div>
       )}
+      <LanguagePicker placement="fixed" />
     </main>
   );
 }

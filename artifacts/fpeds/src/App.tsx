@@ -15,6 +15,8 @@ import AdminPage from '@/pages/admin';
 import CheckPage from '@/pages/check';
 import { Route, Switch, useLocation, useRoute, Router as WouterRouter } from 'wouter';
 import { syncDocumentPreferences } from '@/lib/preferences';
+import { syncTheme } from '@/lib/appearance';
+import { startLanguageRuntime, useLanguage } from '@/lib/language';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 20_000, retry: 1 } } });
 
@@ -184,8 +186,13 @@ function PageMetadata() {
 }
 
 function App() {
+  useLanguage();
   useEffect(() => {
-    const sync = () => syncDocumentPreferences();
+    const sync = () => {
+      syncDocumentPreferences();
+      syncTheme();
+      startLanguageRuntime();
+    };
     sync();
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);

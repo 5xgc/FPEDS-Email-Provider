@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { MailShell } from '@/components/mail-shell';
 import { Button } from '@/components/ui/button';
+import { getCurrentLocale } from '@/lib/language';
 
 type Overview = {
   totals: { users: number; sentToday: number; receivedToday: number };
@@ -47,11 +48,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const dateLabel = (value: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(date);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(getCurrentLocale(), { month: 'short', day: 'numeric' }).format(date);
 };
 const dateTime = (value: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(getCurrentLocale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
 };
 
 function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -71,7 +72,7 @@ function Chart({ title, points, accent = false }: { title: string; points: Array
   return <div className="min-w-0 p-4 sm:p-5">
     <div className="flex items-center justify-between gap-3">
       <h3 className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">{title}</h3>
-      <span className="font-mono text-xs text-foreground">{points.length ? points.reduce((sum, point) => sum + point.count, 0).toLocaleString() : '—'} <span className="text-muted-foreground">in series</span></span>
+      <span className="font-mono text-xs text-foreground">{points.length ? points.reduce((sum, point) => sum + point.count, 0).toLocaleString(getCurrentLocale()) : '—'} <span className="text-muted-foreground">in series</span></span>
     </div>
     {points.length === 0 ? <div className="mt-5 grid h-[148px] place-items-center rounded-xl bg-white/[.025] text-xs text-muted-foreground">No analytics available yet.</div> :
       <div className="mt-3">
@@ -206,7 +207,7 @@ export default function AdminPage() {
           ].map((metric, index) => <Panel key={metric.label} className={`animate-enter animate-enter-${Math.min(index + 1, 2)} relative overflow-hidden p-4 sm:p-5`}>
             <span className="absolute -right-3 -top-5 text-primary/[.08]"><metric.icon className="h-24 w-24" /></span>
             <div className="relative flex items-center justify-between"><span className="font-mono text-[10px] uppercase tracking-[.17em] text-muted-foreground">{metric.label}</span><metric.icon className="h-4 w-4 text-primary" /></div>
-            <p className="relative mt-4 font-display text-4xl tracking-[-.05em]">{metric.value.toLocaleString()}</p>
+            <p className="relative mt-4 font-display text-4xl tracking-[-.05em]">{metric.value.toLocaleString(getCurrentLocale())}</p>
             <p className="relative mt-1 text-xs text-muted-foreground">{metric.note}</p>
           </Panel>)}
         </section>
@@ -226,7 +227,7 @@ export default function AdminPage() {
         <Panel className="mb-4 overflow-hidden">
           <div className="flex flex-col justify-between gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
             <div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Request protection</p><h2 className="mt-1 font-display text-xl">API traffic snapshot</h2></div>
-            <span className="rounded-full border border-white/10 bg-white/[.03] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{overview.traffic.rateLimitedSinceStart.toLocaleString()} rate limited</span>
+            <span className="rounded-full border border-white/10 bg-white/[.03] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{overview.traffic.rateLimitedSinceStart.toLocaleString(getCurrentLocale())} rate limited</span>
           </div>
           <div className="grid gap-4 p-4 sm:grid-cols-[.7fr_1.3fr] sm:p-5">
             <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-4">
@@ -238,7 +239,7 @@ export default function AdminPage() {
               {!overview.traffic.topRoutes.length ? <p className="grid min-h-24 place-items-center text-sm text-muted-foreground">No API traffic counted yet.</p> :
                 <table className="w-full min-w-[380px] border-collapse text-left">
                   <thead><tr className="border-b border-white/[.08] font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground"><th className="px-2 py-2 font-normal">API route</th><th className="px-2 py-2 font-normal">Method</th><th className="px-2 py-2 text-right font-normal">Requests</th></tr></thead>
-                  <tbody className="divide-y divide-white/[.06]">{overview.traffic.topRoutes.map((route) => <tr key={`${route.method}-${route.path}`} className="hover:bg-white/[.025]"><td className="max-w-[340px] break-all px-2 py-2 font-mono text-[10px]">{route.path}</td><td className="px-2 py-2 font-mono text-[9px] text-muted-foreground">{route.method}</td><td className="px-2 py-2 text-right font-mono text-xs">{route.count.toLocaleString()}</td></tr>)}</tbody>
+                  <tbody className="divide-y divide-white/[.06]">{overview.traffic.topRoutes.map((route) => <tr key={`${route.method}-${route.path}`} className="hover:bg-white/[.025]"><td className="max-w-[340px] break-all px-2 py-2 font-mono text-[10px]">{route.path}</td><td className="px-2 py-2 font-mono text-[9px] text-muted-foreground">{route.method}</td><td className="px-2 py-2 text-right font-mono text-xs">{route.count.toLocaleString(getCurrentLocale())}</td></tr>)}</tbody>
                 </table>}
             </div>
           </div>

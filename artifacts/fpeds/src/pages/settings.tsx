@@ -40,11 +40,13 @@ import { Switch } from '@/components/ui/switch';
 import { MailShell } from '@/components/mail-shell';
 import { AccountDeletionSettings } from '@/components/settings/account-deletion';
 import { PwaInstallCard } from '@/components/settings/pwa-install-card';
+import { AppearanceCard } from '@/components/settings/appearance-card';
 import { createCredentialFile, downloadCredentialFile } from '@/lib/secure-credential-file';
 import { readPreference, writePreference } from '@/lib/preferences';
+import { getCurrentLocale } from '@/lib/language';
 
 const fmt = (date: string) =>
-  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date));
+  new Intl.DateTimeFormat(getCurrentLocale(), { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(date));
 
 function SettingsCard({
   icon: Icon,
@@ -288,6 +290,7 @@ export default function SettingsPage() {
             {(notifications.data ?? []).length === 0 ? <p className="rounded-xl bg-white/[.025] px-4 py-6 text-center text-xs text-muted-foreground">No new notifications.</p> : <div className="divide-y divide-white/[.07]">{(notifications.data ?? []).map((note) => <button key={note.id} onClick={() => markNotification.mutate({ id: note.id }, { onSuccess: () => client.invalidateQueries({ queryKey: getListNotificationsQueryKey() }) })} className="flex w-full gap-3 py-4 text-left first:pt-0 last:pb-0" data-testid={`button-notification-${note.id}`}><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${note.isRead ? 'bg-muted' : 'bg-primary'}`} /><span className="min-w-0"><p className="text-sm font-medium">{note.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{note.message}</p><p className="mt-2 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{fmt(note.createdAt)} · {note.isRead ? 'Read' : 'Mark read'}</p></span></button>)}</div>}
           </SettingsCard>
           <PwaInstallCard />
+          <AppearanceCard />
         </div>
         <div className="mt-4">
           <AccountDeletionSettings />

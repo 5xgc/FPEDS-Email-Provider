@@ -79,8 +79,8 @@ export function MailShell({ children }: { children: React.ReactNode }) {
     ? decodeURIComponent(location.split('/')[2]?.split('?')[0] ?? '')
     : location.split('/')[1] || 'inbox';
   return (
-    <div className="moraltown relative min-h-[100dvh] overflow-hidden text-foreground">
-      <header className="workspace-header glass relative z-40 flex h-16 min-w-0 items-center justify-between gap-3 overflow-visible border-x-0 border-t-0 px-4 sm:px-5 md:h-[72px] md:px-8">
+    <div className="moraltown workspace-frame relative flex h-[100dvh] min-h-0 flex-col overflow-hidden text-foreground">
+      <header className="workspace-header glass relative z-40 flex h-16 min-w-0 shrink-0 items-center justify-between gap-3 overflow-visible border-x-0 border-t-0 px-4 sm:px-5 md:h-[72px] md:px-8">
         <Link href="/inbox" onClick={close} className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2" data-testid="link-logo">
           <LogoMark />
         </Link>
@@ -99,29 +99,29 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /> Sign out</Button>
         </div>}
       </header>
-       <div className="relative z-20 flex min-w-0">
-            <aside className={`workspace-sidebar glass fixed bottom-0 left-0 top-16 z-40 w-[min(86vw,300px)] shrink-0 border-y-0 border-l-0 p-4 backdrop-blur-2xl transition-transform duration-300 md:sticky md:top-[72px] md:block md:h-[calc(100dvh-72px)] md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+       <div className="relative z-20 flex min-h-0 min-w-0 flex-1 overflow-hidden">
+             <aside className={`workspace-sidebar glass fixed bottom-0 left-0 top-16 z-40 flex w-[min(86vw,300px)] shrink-0 flex-col overflow-hidden border-y-0 border-l-0 p-4 backdrop-blur-2xl transition-transform duration-300 md:relative md:inset-auto md:top-auto md:h-full md:max-h-full md:w-[270px] md:translate-x-0 md:p-5 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
             <div className="mb-3 flex items-center justify-between md:hidden"><span className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Navigation</span><button onClick={close} data-testid="button-close-menu"><X className="h-4 w-4" /></button></div>
            <Link href="/compose" onClick={close} className="compose-cta mb-4 flex h-11 items-center justify-center gap-2 rounded-xl font-semibold transition-transform hover:-translate-y-0.5 md:mb-6 md:h-12" data-testid="link-compose"><PenLine className="h-4 w-4" /> Compose</Link>
             <div className="mb-4 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-3 md:hidden">
               <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Sending <span data-private-email className="ml-1 break-all normal-case tracking-normal text-foreground/75">{sendingAddress}</span></p>
               <p className="mt-2 font-mono text-[9px] uppercase tracking-[.14em] text-primary">Receiving <span data-private-email className="ml-1 break-all normal-case tracking-normal text-foreground/75">{receivingAddress}</span></p>
             </div>
-          <nav className="space-y-1" aria-label="Mailbox">
+          <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1" aria-label="Mailbox">
             <p className="mb-3 px-3 font-mono text-[9px] uppercase tracking-[.22em] text-muted-foreground">Mailbox</p>
              {nav.map(item => { const Icon = item.icon; const itemFolder = item.label.toLowerCase(); const active = selectedFolder === itemFolder; return <Link key={item.label} href={item.href} onClick={close} className={`flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${active ? 'nav-active font-semibold' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`} data-testid={`link-folder-${item.label.toLowerCase()}`}><span className="flex items-center gap-3"><Icon className={`h-4 w-4 ${active ? 'text-primary' : ''}`} />{item.label}</span>{item.count ? <span className="font-mono text-[10px]">{item.count}</span> : null}</Link>; })}
             <div className="my-6 h-px bg-border/60" />
             <div className="mb-3 flex items-center justify-between px-3"><p className="font-mono text-[9px] uppercase tracking-[.22em] text-muted-foreground">Your folders</p><button className="text-muted-foreground hover:text-primary" onClick={() => setLocation('/settings?panel=folders')} data-testid="button-add-folder"><Plus className="h-3.5 w-3.5" /></button></div>
             {folders.map(folder => <Link key={folder.id} href={`/folder/${encodeURIComponent(folder.name)}`} onClick={close} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${selectedFolder === folder.name ? 'bg-accent font-semibold text-accent-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`} data-testid={`link-custom-folder-${folder.id}`}><span className="flex items-center gap-3"><Tag className="h-4 w-4" />{folder.name}</span><span className="font-mono text-[10px]">{folder.count}</span></Link>)}
           </nav>
-          <div className="absolute bottom-5 left-5 right-5 space-y-1">
+           <div className="mt-3 shrink-0 space-y-1 border-t border-white/10 pt-3">
             {canSeeAdmin && <Link href="/admin" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-admin"><Activity className="h-4 w-4" /> Admin console</Link>}
             <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-settings"><Settings className="h-4 w-4" /> Settings</Link>
             <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start px-3 text-sm text-muted-foreground hover:text-foreground" data-testid="button-signout"><LogOut className="h-4 w-4" /> {signOut.isPending ? 'Closing session…' : 'Sign out'}</Button>
           </div>
         </aside>
          {open && <button className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={close} aria-label="Close navigation" data-testid="button-overlay" />}
-            <main className="scroll-stage w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">
+             <main key={location} className="scroll-stage h-full min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain pb-24 md:pb-0">
               {serviceStatus?.announcement && <div className="mx-3 mt-3 rounded-xl border border-white/10 bg-white/[.035] px-4 py-3 text-sm animate-enter sm:mx-6 md:mx-8">
                 <p className="font-mono text-[9px] uppercase tracking-[.16em] text-primary">MoralTown announcement</p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-foreground/85">{serviceStatus.announcement.message}</p>

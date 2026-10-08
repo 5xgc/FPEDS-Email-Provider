@@ -70,6 +70,40 @@
   --radius: 0.8rem;
 }
 
+:root[data-theme="violet"] {
+  --primary: 266 78% 68%;
+  --ring: 266 78% 62%;
+  --accent: 266 48% 20%;
+  --accent-foreground: 266 85% 86%;
+}
+:root[data-theme="ocean"] {
+  --primary: 196 88% 58%;
+  --ring: 196 88% 54%;
+  --accent: 198 52% 19%;
+  --accent-foreground: 196 90% 84%;
+}
+:root[data-theme="forest"] {
+  --primary: 151 62% 48%;
+  --ring: 151 62% 44%;
+  --accent: 151 44% 17%;
+  --accent-foreground: 148 66% 80%;
+}
+:root[data-theme="gold"] {
+  --primary: 39 94% 58%;
+  --ring: 39 94% 52%;
+  --accent: 38 55% 18%;
+  --accent-foreground: 40 96% 82%;
+}
+:root[data-theme="violet"] .moraltown,
+:root[data-theme="ocean"] .moraltown,
+:root[data-theme="forest"] .moraltown,
+:root[data-theme="gold"] .moraltown {
+  --primary: inherit;
+  --ring: inherit;
+  --accent: inherit;
+  --accent-foreground: inherit;
+}
+
 .dark {
   color-scheme: dark;
   --background: 0 0% 7%;
@@ -109,7 +143,7 @@
     @apply font-sans antialiased bg-background text-foreground;
     min-height: 100dvh;
     overflow-x: hidden;
-    background-image: radial-gradient(ellipse at 80% -20%, hsl(0 72% 35% / .18), transparent 48%), radial-gradient(ellipse at 0% 100%, hsl(0 0% 22% / .2), transparent 48%), linear-gradient(135deg, hsl(0 0% 5%), hsl(0 0% 8%));
+    background-image: radial-gradient(ellipse at 80% -20%, hsl(var(--primary) / .18), transparent 48%), radial-gradient(ellipse at 0% 100%, hsl(0 0% 22% / .2), transparent 48%), linear-gradient(135deg, hsl(0 0% 5%), hsl(0 0% 8%));
   }
   button, input, textarea { font: inherit; }
   #root { min-height: 100dvh; min-width: 0; overflow-x: clip; }
@@ -145,7 +179,7 @@
   min-height: 100dvh;
   color: hsl(var(--foreground));
   background:
-    radial-gradient(ellipse at 90% 0%, hsl(0 78% 32% / .18), transparent 34rem),
+    radial-gradient(ellipse at 90% 0%, hsl(var(--primary) / .18), transparent 34rem),
     radial-gradient(ellipse at 6% 100%, hsl(0 0% 18% / .16), transparent 30rem),
     linear-gradient(145deg, hsl(0 0% 5%), hsl(0 0% 8%));
 }
@@ -161,11 +195,16 @@
 }
 
 .moraltown .glass {
-  background: linear-gradient(145deg, hsl(0 0% 10% / .96), hsl(0 0% 7% / .96));
-  border: 1px solid hsl(0 0% 100% / .12);
-  box-shadow: 0 24px 70px hsl(0 0% 0% / .48), inset 0 1px 0 hsl(0 0% 100% / .045);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: linear-gradient(145deg, hsl(0 0% 100% / .095), hsl(0 0% 100% / .035) 45%, hsl(0 0% 0% / .32));
+  border: 1px solid hsl(0 0% 100% / .15);
+  box-shadow: 0 24px 70px hsl(0 0% 0% / .34), inset 0 1px 0 hsl(0 0% 100% / .1);
+  backdrop-filter: blur(26px) saturate(145%);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+  transition: border-color .28s ease, box-shadow .32s ease, background-color .28s ease, transform .32s cubic-bezier(.2,.75,.25,1);
+}
+.moraltown .glass:not(.workspace-header):not(.workspace-sidebar):not(.workspace-mobile-nav):hover {
+  border-color: hsl(var(--primary) / .24);
+  box-shadow: 0 28px 76px hsl(0 0% 0% / .4), inset 0 1px 0 hsl(0 0% 100% / .12);
 }
 .moraltown .hairline { border-color: hsl(0 0% 100% / .12); }
 .moraltown .font-display { letter-spacing: -.035em; }
@@ -206,19 +245,50 @@
   object-position: 50% 56%;
   mix-blend-mode: screen;
 }
-.moraltown .workspace-header { background: hsl(0 0% 6% / .92); border-color: hsl(0 0% 100% / .11); }
-.moraltown .workspace-sidebar { background: hsl(0 0% 5% / .98); border-color: hsl(0 0% 100% / .11); }
-.moraltown .workspace-mobile-nav { background: hsl(0 0% 6% / .96); border-color: hsl(0 0% 100% / .11); }
+.moraltown .workspace-header { background: hsl(0 0% 7% / .72); border-color: hsl(0 0% 100% / .13); }
+.moraltown .workspace-sidebar { background: hsl(0 0% 5% / .72); border-color: hsl(0 0% 100% / .13); }
+.moraltown .workspace-mobile-nav { background: hsl(0 0% 6% / .74); border-color: hsl(0 0% 100% / .13); }
 .moraltown .nav-active { background: hsl(var(--primary) / .14); color: hsl(var(--accent-foreground)); }
 .moraltown .compose-cta { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 8px 22px hsl(var(--primary) / .20); }
-.moraltown .compose-cta:hover { background: hsl(0 78% 48%); }
+.moraltown .compose-cta:hover { background: hsl(var(--primary) / .88); }
 .moraltown .workspace-header {
   height: calc(4rem + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
 }
-.moraltown .workspace-sidebar {
-  top: calc(4rem + env(safe-area-inset-top, 0px));
-  max-height: calc(100dvh - 4rem - env(safe-area-inset-top, 0px));
+.moraltown .workspace-frame { overscroll-behavior: none; }
+.moraltown .scroll-stage {
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.moraltown .workspace-sidebar nav { scrollbar-width: thin; scrollbar-color: hsl(var(--primary) / .32) transparent; }
+.moraltown .scroll-stage::-webkit-scrollbar,
+.moraltown .workspace-sidebar nav::-webkit-scrollbar { width: 7px; }
+.moraltown .scroll-stage::-webkit-scrollbar-thumb,
+.moraltown .workspace-sidebar nav::-webkit-scrollbar-thumb { border-radius: 999px; background: hsl(var(--primary) / .28); }
+.moraltown .scroll-stage::-webkit-scrollbar-track,
+.moraltown .workspace-sidebar nav::-webkit-scrollbar-track { background: transparent; }
+.moraltown .glass { border-radius: 1.35rem; }
+.moraltown button,
+.moraltown input,
+.moraltown textarea,
+.moraltown select { border-radius: 1rem; }
+.moraltown .workspace-frame button,
+.moraltown .workspace-frame a { transition-duration: .24s; }
+.moraltown button:not(:disabled):active { transform: scale(.985); }
+.moraltown button:not(:disabled):focus-visible,
+.moraltown a:focus-visible { outline: 2px solid hsl(var(--primary) / .72); outline-offset: 3px; }
+.moraltown .workspace-header,
+.moraltown .workspace-sidebar,
+.moraltown .workspace-mobile-nav { backdrop-filter: blur(28px) saturate(155%); -webkit-backdrop-filter: blur(28px) saturate(155%); }
+.language-control {
+  border: 1px solid hsl(0 0% 100% / .16);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, hsl(0 0% 100% / .11), hsl(0 0% 100% / .045));
+  box-shadow: 0 14px 38px hsl(0 0% 0% / .28), inset 0 1px 0 hsl(0 0% 100% / .08);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
 .moraltown-privacy-mode [data-private-email] {
   filter: blur(.32rem);
@@ -244,7 +314,6 @@
     padding-top: 0;
   }
   .moraltown .workspace-sidebar {
-    top: 72px;
     height: calc(100dvh - 72px);
     max-height: calc(100dvh - 72px);
   }
@@ -302,7 +371,7 @@
   .scroll-reveal-item { animation: scroll-reveal linear both; animation-timeline: view(); animation-range: entry 0% cover 24%; }
 }
 @media (max-width: 767px) {
-  .workspace-sidebar { max-height: calc(100dvh - 4rem); overflow-y: auto; }
+  .workspace-sidebar { max-height: 100dvh; }
   .landing-hero-art { min-height: 320px; }
   .moraltown main > .mx-auto { padding-top: .5rem; }
   .moraltown .brand-mark { width: 98px; height: 48px; }

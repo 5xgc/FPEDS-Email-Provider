@@ -25,9 +25,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorBlock, LoadingBlock, MailShell } from '@/components/mail-shell';
 import { SafeLinkifiedText } from '@/components/safe-linkified-text';
+import { getCurrentLocale } from '@/lib/language';
 
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en', {
+  new Intl.DateTimeFormat(getCurrentLocale(), {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
