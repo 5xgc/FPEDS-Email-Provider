@@ -17,7 +17,7 @@ import sqlite3
 import subprocess
 import threading
 from base64 import urlsafe_b64encode
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
@@ -28,6 +28,8 @@ import json
 import logging
 import time
 from decimal import Decimal, InvalidOperation
+from collections import OrderedDict
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, jsonify, request, send_from_directory, session
@@ -96,10 +98,24 @@ app.config.update(
         os.environ.get("FLASK_ENV") == "production"
         or os.environ.get("RENDER", "").lower() == "true"
     ),
+    MAX_CONTENT_LENGTH=1_200_000,
 )
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "moraltown1919")
-MASTER_ACCESS_CODE = "moraltown1919"
+# Replit/Render terminate TLS and forward one trusted client address to Flask.
+# The app limiter is a second layer; use provider-level edge filtering for DDoS.
+RATE_LIMITS: OrderedDict[tuple[str, str], tuple[float, int]] = OrderedDict()
+RATE_LIMIT_LOCK = threading.Lock()
+RATE_LIMIT_MAX_CLIENTS = 20_000
+RATE_LIMIT_RULES = {
+    "api": (240, 60),
+    "auth": (12, 60),
+    "captcha": (30, 60),
+    "send": (12, 60),
+}
+
+FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "").strip()
+ADMIN_ACCESS_KEY = os.environ.get("MORALTOWN_ADMIN_ACCESS_KEY", "").strip()
 PAYMENT_EXPIRY_SECONDS = 60 * 60 * 2
 PAYMENT_CHECK_INTERVAL_SECONDS = 30
 PAYMENT_MONITOR_INTERVAL_SECONDS = 5
@@ -127,8 +143,10 @@ def init_db() -> None:
               id TEXT PRIMARY KEY,
               access_key_hash TEXT NOT NULL UNIQUE,
               access_key_ciphertext TEXT,
+              access_key_lookup_hash TEXT UNIQUE,
               username TEXT NOT NULL UNIQUE,
               email TEXT NOT NULL UNIQUE,
+              role TEXT NOT NULL DEFAULT 'user',
               purchase_email TEXT,
               email_changes_remaining INTEGER NOT NULL DEFAULT 2,
               email_change_year INTEGER NOT NULL,
@@ -145,6 +163,7 @@ def init_db() -> None:
               recipient TEXT NOT NULL,
               subject TEXT NOT NULL,
               body TEXT NOT NULL,
+              content_encrypted INTEGER NOT NULL DEFAULT 0,
               received_at TEXT NOT NULL,
               is_read INTEGER NOT NULL DEFAULT 0,
               is_starred INTEGER NOT NULL DEFAULT 0,
@@ -224,6 +243,32 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS account_deletion_jobs_due_idx
               ON account_deletion_jobs(next_check_at);
+
+            CREATE TABLE IF NOT EXISTS system_settings (
+              setting_key TEXT PRIMARY KEY,
+              setting_value TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS site_announcements (
+              id INTEGER PRIMARY KEY CHECK (id = 1),
+              message TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS admin_audit_log (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              action TEXT NOT NULL,
+              actor TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS captcha_challenges (
+              token_hash TEXT PRIMARY KEY,
+              answer_hash TEXT NOT NULL,
+              expires_at INTEGER NOT NULL,
+              created_at INTEGER NOT NULL
+            );
             """
         )
         try:
@@ -232,6 +277,9 @@ def init_db() -> None:
             if "duplicate column name" not in str(exc).lower():
                 raise
         migrations = (
+            ("users", "access_key_lookup_hash", "TEXT"),
+            ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
+            ("messages", "content_encrypted", "INTEGER NOT NULL DEFAULT 0"),
             ("users", "deletion_requested_at", "INTEGER"),
             ("users", "purchase_email", "TEXT"),
             ("payment_orders", "contact_email", "TEXT"),
@@ -256,6 +304,27 @@ def init_db() -> None:
                 )
         connection.execute(
             """
+            CREATE UNIQUE INDEX IF NOT EXISTS users_access_key_lookup_hash_idx
+            ON users(access_key_lookup_hash) WHERE access_key_lookup_hash IS NOT NULL
+            """
+        )
+        now = utc_now()
+        for key, value in (
+            ("lockdown", "0"),
+            ("lockdown_message", "WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON"),
+            ("api_paused", "0"),
+            ("sending_enabled", "1"),
+            ("receiving_enabled", "1"),
+        ):
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO system_settings(setting_key, setting_value, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (key, value, now),
+            )
+        connection.execute(
+            """
             CREATE UNIQUE INDEX IF NOT EXISTS users_purchase_email_idx
             ON users(purchase_email) WHERE purchase_email IS NOT NULL
             """
@@ -271,6 +340,44 @@ def init_db() -> None:
                     "UPDATE users SET email = ?, updated_at = ? WHERE id = ?",
                     (expected_email, utc_now(), row["id"]),
                 )
+        # Backfill fast lookup hashes for existing high-entropy access keys and
+        # encrypt legacy plaintext mail before serving the first request.
+        for row in connection.execute(
+            """
+            SELECT id, access_key_ciphertext FROM users
+            WHERE access_key_lookup_hash IS NULL AND access_key_ciphertext IS NOT NULL
+            """
+        ).fetchall():
+            key = decrypt_access_key(row["access_key_ciphertext"])
+            if key:
+                connection.execute(
+                    "UPDATE users SET access_key_lookup_hash = ? WHERE id = ?",
+                    (hash_access_key_lookup(key), row["id"]),
+                )
+        for row in connection.execute(
+            """
+            SELECT id, sender, recipient, subject, body FROM messages
+            WHERE content_encrypted = 0
+            """
+        ).fetchall():
+            connection.execute(
+                """
+                UPDATE messages
+                SET sender = ?, recipient = ?, subject = ?, body = ?, content_encrypted = 1
+                WHERE id = ?
+                """,
+                (
+                    encrypt_mailbox_text(row["sender"]),
+                    encrypt_mailbox_text(row["recipient"]),
+                    encrypt_mailbox_text(row["subject"]),
+                    encrypt_mailbox_text(row["body"]),
+                    row["id"],
+                ),
+            )
+        connection.execute(
+            "DELETE FROM captcha_challenges WHERE expires_at < ?",
+            (int(time.time()),),
+        )
 
 
 def new_id() -> str:
@@ -281,6 +388,11 @@ def hash_access_key(access_key: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", access_key.encode(), salt, 210_000)
     return f"pbkdf2_sha256$210000${salt.hex()}${digest.hex()}"
+
+
+def hash_access_key_lookup(access_key: str) -> str:
+    """Index high-entropy access keys without scanning every account at login."""
+    return hashlib.sha256(access_key.encode("utf-8")).hexdigest()
 
 
 def check_access_key(access_key: str, stored: str) -> bool:
@@ -319,6 +431,20 @@ def decrypt_access_key(ciphertext: str) -> str | None:
         return None
 
 
+def encrypt_mailbox_text(value: str) -> str:
+    return credential_fernet().encrypt(value.encode("utf-8")).decode("ascii")
+
+
+def decrypt_mailbox_text(value: str) -> str:
+    try:
+        return credential_fernet().decrypt(value.encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError, UnicodeDecodeError) as exc:
+        raise RuntimeError(
+            "Stored mailbox data could not be decrypted. Verify that SESSION_SECRET "
+            "matches the secret used when the data was stored."
+        ) from exc
+
+
 def generate_access_key() -> str:
     return "".join(secrets.choice("0123456789") for _ in range(50))
 
@@ -336,12 +462,87 @@ def valid_access_key(access_key: str) -> bool:
 
 
 def accepts_free_access_code(supplied: str) -> bool:
-    candidates = {FREE_ACCESS_CODE, MASTER_ACCESS_CODE}
-    return any(
-        hmac.compare_digest(supplied.encode("utf-8"), candidate.encode("utf-8"))
-        for candidate in candidates
-        if candidate
+    return bool(FREE_ACCESS_CODE) and hmac.compare_digest(
+        supplied.encode("utf-8"), FREE_ACCESS_CODE.encode("utf-8")
     )
+
+
+def role_for_user(row: sqlite3.Row | dict[str, Any]) -> str:
+    try:
+        role = str(row["role"] or "user")
+    except (KeyError, IndexError):
+        role = "user"
+    allowed = {"user", "soldier", "moraltown", "admin", "co_founder", "og", "fed"}
+    return role if role in allowed else "user"
+
+
+def admin_account() -> dict[str, Any]:
+    return {
+        "id": "system-admin",
+        "username": "MoralTown Admin",
+        "email": "",
+        "created_at": "system",
+        "email_changes_remaining": 0,
+        "role": "admin",
+    }
+
+
+def is_admin_login_key(access_key: str) -> bool:
+    return bool(
+        valid_access_key(ADMIN_ACCESS_KEY)
+        and hmac.compare_digest(access_key.encode("utf-8"), ADMIN_ACCESS_KEY.encode("utf-8"))
+    )
+
+
+def has_management_permission(user: sqlite3.Row | dict[str, Any]) -> bool:
+    return role_for_user(user) in {"admin", "co_founder"}
+
+
+def require_admin_account(user: sqlite3.Row | dict[str, Any]) -> bool:
+    return bool(session.get("admin_authenticated")) or role_for_user(user) == "admin"
+
+
+def load_system_settings() -> dict[str, str]:
+    with db_connection() as connection:
+        rows = connection.execute(
+            "SELECT setting_key, setting_value FROM system_settings"
+        ).fetchall()
+    return {row["setting_key"]: row["setting_value"] for row in rows}
+
+
+def control_state() -> dict[str, Any]:
+    settings = load_system_settings()
+    return {
+        "lockdown": settings.get("lockdown", "0") == "1",
+        "lockdownMessage": settings.get(
+            "lockdown_message", "WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON"
+        ),
+        "apiPaused": settings.get("api_paused", "0") == "1",
+        "sendingEnabled": settings.get("sending_enabled", "1") == "1",
+        "receivingEnabled": settings.get("receiving_enabled", "1") == "1",
+    }
+
+
+def write_system_setting(key: str, value: str) -> None:
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO system_settings(setting_key, setting_value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(setting_key) DO UPDATE SET
+              setting_value = excluded.setting_value,
+              updated_at = excluded.updated_at
+            """,
+            (key, value, utc_now()),
+        )
+
+
+def write_admin_audit(action: str, actor: str) -> None:
+    with db_connection() as connection:
+        connection.execute(
+            "INSERT INTO admin_audit_log(action, actor, created_at) VALUES (?, ?, ?)",
+            (action[:180], actor[:80], utc_now()),
+        )
 
 
 def mailbox_address(username: str) -> str:
@@ -355,17 +556,30 @@ def public_user(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
         "email": row["email"],
         "createdAt": row["created_at"],
         "emailChangesRemaining": row["email_changes_remaining"],
+        "role": role_for_user(row),
     }
 
 
 def public_message(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    try:
+        content_encrypted = bool(row["content_encrypted"])
+    except (KeyError, IndexError):
+        content_encrypted = False
+    sender = row["sender"]
+    recipient = row["recipient"]
+    subject = row["subject"]
     body = row["body"]
+    if content_encrypted:
+        sender = decrypt_mailbox_text(sender)
+        recipient = decrypt_mailbox_text(recipient)
+        subject = decrypt_mailbox_text(subject)
+        body = decrypt_mailbox_text(body)
     return {
         "id": row["id"],
         "folder": row["folder"],
-        "from": row["sender"],
-        "to": row["recipient"],
-        "subject": row["subject"],
+        "from": sender,
+        "to": recipient,
+        "subject": subject,
         "preview": re.sub(r"\s+", " ", body)[:140],
         "body": body,
         "receivedAt": row["received_at"],
@@ -377,6 +591,8 @@ def public_message(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
 
 
 def current_user() -> sqlite3.Row | None:
+    if session.get("admin_authenticated") and valid_access_key(ADMIN_ACCESS_KEY):
+        return admin_account()  # type: ignore[return-value]
     user_id = session.get("user_id")
     if not user_id:
         return None
@@ -536,17 +752,18 @@ def store_inbound(sender: str, recipient: str, subject: str, body: str) -> bool:
         connection.execute(
             """
             INSERT INTO messages
-              (id, user_id, folder, sender, recipient, subject, body, received_at, spam_score, blocked)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (id, user_id, folder, sender, recipient, subject, body,
+               content_encrypted, received_at, spam_score, blocked)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
             """,
             (
                 new_id(),
                 owner["id"],
                 "spam" if blocked else "inbox",
-                sender,
-                recipient,
-                subject,
-                body,
+                encrypt_mailbox_text(sender),
+                encrypt_mailbox_text(recipient),
+                encrypt_mailbox_text(subject),
+                encrypt_mailbox_text(body),
                 utc_now(),
                 spam_score,
                 int(blocked),
@@ -838,9 +1055,289 @@ def handle_send():
     return jsonify(public_message(message)), 201
 
 
+def rate_limit_response(bucket: str, maximum: int, seconds: int):
+    source = request.remote_addr or "unknown"
+    source_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()[:32]
+    key = (bucket, source_hash)
+    now = time.time()
+    with RATE_LIMIT_LOCK:
+        current = RATE_LIMITS.get(key)
+        if current is None or now - current[0] >= seconds:
+            RATE_LIMITS[key] = (now, 1)
+            RATE_LIMITS.move_to_end(key)
+            allowed = True
+            retry_after = seconds
+        else:
+            started, count = current
+            RATE_LIMITS[key] = (started, count + 1)
+            RATE_LIMITS.move_to_end(key)
+            allowed = count < maximum
+            retry_after = max(1, int(seconds - (now - started)))
+        if len(RATE_LIMITS) > RATE_LIMIT_MAX_CLIENTS:
+            for _ in range(len(RATE_LIMITS) - RATE_LIMIT_MAX_CLIENTS):
+                RATE_LIMITS.popitem(last=False)
+    if allowed:
+        return None
+    response = error_response("Too many requests. Please wait and try again.", 429)
+    response.headers["Retry-After"] = str(retry_after)
+    return response
+
+
+def captcha_answer_hash(token: str, answer: str) -> str:
+    return hashlib.sha256(f"{token}:{answer.strip()}".encode("utf-8")).hexdigest()
+
+
+def issue_captcha() -> dict[str, Any]:
+    left = secrets.randbelow(8) + 2
+    right = secrets.randbelow(8) + 2
+    token = secrets.token_urlsafe(24)
+    now = int(time.time())
+    with db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO captcha_challenges(token_hash, answer_hash, expires_at, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                hashlib.sha256(token.encode("utf-8")).hexdigest(),
+                captcha_answer_hash(token, str(left + right)),
+                now + 300,
+                now,
+            ),
+        )
+        if now % 30 == 0:
+            connection.execute(
+                "DELETE FROM captcha_challenges WHERE expires_at < ?", (now,)
+            )
+    return {
+        "token": token,
+        "question": f"What is {left} + {right}?",
+        "expiresAt": now + 300,
+    }
+
+
+def consume_captcha(payload: dict[str, Any]) -> bool:
+    token = str(payload.get("captchaToken", "")).strip()
+    answer = str(payload.get("captchaAnswer", "")).strip()
+    if not token or len(token) > 128 or not re.fullmatch(r"\d{1,3}", answer):
+        return False
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    with db_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT answer_hash, expires_at FROM captcha_challenges WHERE token_hash = ?",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            return False
+        connection.execute(
+            "DELETE FROM captcha_challenges WHERE token_hash = ?", (token_hash,)
+        )
+    return int(row["expires_at"]) >= int(time.time()) and hmac.compare_digest(
+        str(row["answer_hash"]), captcha_answer_hash(token, answer)
+    )
+
+
+def get_announcement() -> dict[str, str] | None:
+    with db_connection() as connection:
+        row = connection.execute(
+            "SELECT message, updated_at FROM site_announcements WHERE id = 1"
+        ).fetchone()
+    if not row:
+        return None
+    return {"message": row["message"], "updatedAt": row["updated_at"]}
+
+
+def security_status() -> dict[str, Any]:
+    controls = control_state()
+    session_crypto_active = len(SESSION_SECRET) >= 32
+    outbound_active = bool(
+        os.environ.get("BREVO_API_KEY", "").strip()
+        or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
+    ) and bool(BREVO_SENDER_DOMAIN)
+    inbound_active = bool(os.environ.get("MAILGUN_SIGNING_KEY", "").strip())
+    services = [
+        {
+            "id": "session-encryption",
+            "name": "Credential and mailbox encryption",
+            "active": session_crypto_active,
+            "detail": (
+                "Encrypted mailbox fields require the same persistent SESSION_SECRET."
+                if session_crypto_active
+                else "Encryption is not configured with a strong session secret."
+            ),
+        },
+        {
+            "id": "outbound-mail",
+            "name": "Outbound mail provider",
+            "active": outbound_active and controls["sendingEnabled"],
+            "detail": (
+                "Provider credentials are present; values are never shown."
+                if outbound_active
+                else "Outbound mail provider is not configured."
+            ),
+        },
+        {
+            "id": "inbound-mail",
+            "name": "Inbound mail signature verification",
+            "active": inbound_active and controls["receivingEnabled"],
+            "detail": (
+                "Signed inbound delivery is configured; key values are never shown."
+                if inbound_active
+                else "Mailgun signing is not configured."
+            ),
+        },
+        {
+            "id": "captcha",
+            "name": "One-use human-check challenges",
+            "active": True,
+            "detail": "Short-lived challenges are verified server-side and consumed once.",
+        },
+        {
+            "id": "request-throttle",
+            "name": "Application request throttling",
+            "active": True,
+            "detail": "Per-process limits cover API, authentication, challenge, and send routes.",
+        },
+        {
+            "id": "api-controls",
+            "name": "Server-enforced operating controls",
+            "active": True,
+            "detail": "Lockdown, API pause, send pause, and receive pause are enforced by Flask.",
+        },
+    ]
+    ready = (
+        session_crypto_active
+        and outbound_active
+        and inbound_active
+        and controls["sendingEnabled"]
+        and controls["receivingEnabled"]
+        and not controls["apiPaused"]
+        and not controls["lockdown"]
+    )
+    warnings = []
+    if not session_crypto_active:
+        warnings.append("Encryption is unavailable. Do not use the mailbox until SESSION_SECRET is configured.")
+    if not outbound_active or not controls["sendingEnabled"]:
+        warnings.append("Outbound mail is unavailable. Do not use the mailbox until sending checks are active.")
+    if not inbound_active or not controls["receivingEnabled"]:
+        warnings.append("Inbound mail is unavailable. Do not use the mailbox until receiving checks are active.")
+    if controls["apiPaused"]:
+        warnings.append("API traffic is paused by an administrator.")
+    if controls["lockdown"]:
+        warnings.append("The website is in administrator lockdown.")
+    routes = []
+    for rule in sorted(app.url_map.iter_rules(), key=lambda item: item.rule):
+        if not rule.rule.startswith("/api/"):
+            continue
+        methods = sorted(method for method in (rule.methods or set()) if method not in {"HEAD", "OPTIONS"})
+        is_public_control = rule.rule in {
+            "/api/healthz",
+            "/api/site/status",
+            "/api/auth/signin",
+            "/api/auth/signout",
+            "/api/auth/me",
+            "/api/security/captcha",
+            "/api/security/check",
+        } or rule.rule.startswith("/api/admin/")
+        active = not controls["apiPaused"] or is_public_control
+        if controls["lockdown"] and not is_public_control:
+            active = False
+        routes.append({"path": rule.rule, "methods": methods, "active": active})
+    return {
+        "mailboxReady": ready,
+        "lockdown": controls["lockdown"],
+        "lockdownMessage": controls["lockdownMessage"],
+        "apiPaused": controls["apiPaused"],
+        "announcement": get_announcement(),
+        "warnings": warnings,
+        "services": services,
+        "routes": routes,
+    }
+
+
 @app.before_request
-def ensure_database() -> None:
-    init_db()
+def protect_request():
+    path = request.path
+    is_webhook = path in {
+        "/webhook/mailgun",
+        "/api/webhook/mailgun",
+        "/webhook/inbound",
+        "/api/webhook/inbound",
+    }
+    if path.startswith("/api/"):
+        for bucket, maximum, seconds in (
+            ("api", *RATE_LIMIT_RULES["api"]),
+            *(
+                [("auth", *RATE_LIMIT_RULES["auth"])]
+                if path.startswith("/api/auth/")
+                else []
+            ),
+            *(
+                [("captcha", *RATE_LIMIT_RULES["captcha"])]
+                if path == "/api/security/captcha"
+                else []
+            ),
+            *(
+                [("send", *RATE_LIMIT_RULES["send"])]
+                if path in {"/api/send", "/api/messages"}
+                else []
+            ),
+        ):
+            limited = rate_limit_response(bucket, maximum, seconds)
+            if limited:
+                return limited
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and not is_webhook:
+            origin = request.headers.get("Origin")
+            if origin:
+                parsed = urlsplit(origin)
+                allowed_schemes = {"http", "https"}
+                if (
+                    parsed.scheme not in allowed_schemes
+                    or not parsed.netloc
+                    or parsed.netloc.lower() != request.host.lower()
+                ):
+                    return error_response("A same-origin request is required.", 403)
+
+    if is_webhook:
+        controls = control_state()
+        if (
+            not controls["receivingEnabled"]
+            or controls["apiPaused"]
+            or controls["lockdown"]
+        ):
+            return error_response("Inbound mail is paused by an administrator.", 503)
+
+    if path.startswith("/api/"):
+        controls = control_state()
+        current = current_user() if (
+            path.startswith("/api/admin/") or controls["lockdown"] or controls["apiPaused"]
+        ) else None
+        management_access = bool(current and has_management_permission(current))
+        admin_access = bool(current and require_admin_account(current))
+        auth_allowlist = {
+            "/api/auth/signin",
+            "/api/auth/signout",
+            "/api/auth/me",
+            "/api/security/captcha",
+            "/api/security/check",
+            "/api/site/status",
+            "/api/healthz",
+        }
+        if controls["apiPaused"] and path not in auth_allowlist and not (
+            path.startswith("/api/admin/") and management_access
+        ):
+            return error_response("API traffic is paused by an administrator.", 503)
+        if controls["lockdown"] and path not in {
+            "/api/auth/signin",
+            "/api/auth/signout",
+            "/api/auth/me",
+            "/api/security/captcha",
+            "/api/site/status",
+            "/api/healthz",
+        } and not (path.startswith("/api/admin/") and admin_access):
+            return error_response("The website is shut down by an administrator.", 503)
+    return None
 
 
 @app.after_request
@@ -889,9 +1386,255 @@ def health():
 
 @app.post("/api/auth/check-access-code")
 def check_access_code():
-    supplied = str((request.get_json(silent=True) or {}).get("accessCode", "")).strip()
+    data = request.get_json(silent=True) or {}
+    if not consume_captcha(data):
+        return error_response("Complete the human check and try again.", 400)
+    supplied = str(data.get("accessCode", "")).strip()
     valid = bool(supplied) and accepts_free_access_code(supplied)
     return jsonify({"valid": valid})
+
+
+@app.get("/api/security/captcha")
+def new_captcha():
+    return jsonify(issue_captcha())
+
+
+@app.get("/api/site/status")
+def public_site_status():
+    controls = control_state()
+    return jsonify(
+        {
+            "lockdown": controls["lockdown"],
+            "lockdownMessage": controls["lockdownMessage"],
+            "announcement": get_announcement(),
+        }
+    )
+
+
+@app.get("/api/security/check")
+def security_check():
+    if not current_user():
+        return error_response("Sign in required.", 401)
+    return jsonify(security_status())
+
+
+def require_management_user(admin_only: bool = False):
+    user = current_user()
+    if not user:
+        return None, error_response("Sign in required.", 401)
+    if admin_only and not require_admin_account(user):
+        return None, error_response("Only an admin account can change account roles.", 403)
+    if not admin_only and not has_management_permission(user):
+        return None, error_response("Admin or co-founder permission is required.", 403)
+    return user, None
+
+
+@app.get("/api/admin/overview")
+def admin_overview():
+    user, failure = require_management_user()
+    if failure:
+        return failure
+    today = datetime.now(timezone.utc).date()
+    days = [today - timedelta(days=offset) for offset in range(6, -1, -1)]
+    first_day = days[0].isoformat()
+    last_day = days[-1].isoformat()
+    with db_connection() as connection:
+        user_rows = connection.execute(
+            """
+            SELECT date(created_at) AS day, COUNT(*) AS count
+            FROM users
+            WHERE date(created_at) BETWEEN ? AND ? AND deletion_requested_at IS NULL
+            GROUP BY date(created_at)
+            """,
+            (first_day, last_day),
+        ).fetchall()
+        message_rows = connection.execute(
+            """
+            SELECT date(received_at) AS day, COUNT(*) AS count
+            FROM messages
+            WHERE date(received_at) BETWEEN ? AND ?
+            GROUP BY date(received_at)
+            """,
+            (first_day, last_day),
+        ).fetchall()
+        totals = {
+            "users": connection.execute(
+                "SELECT COUNT(*) FROM users WHERE deletion_requested_at IS NULL"
+            ).fetchone()[0],
+            "sentToday": connection.execute(
+                "SELECT COUNT(*) FROM messages WHERE folder = 'sent' AND date(received_at) = ?",
+                (today.isoformat(),),
+            ).fetchone()[0],
+            "receivedToday": connection.execute(
+                "SELECT COUNT(*) FROM messages WHERE folder = 'inbox' AND date(received_at) = ?",
+                (today.isoformat(),),
+            ).fetchone()[0],
+        }
+        audit_rows = connection.execute(
+            """
+            SELECT action, actor, created_at
+            FROM admin_audit_log ORDER BY id DESC LIMIT 20
+            """
+        ).fetchall()
+    account_counts = {row["day"]: row["count"] for row in user_rows}
+    message_counts = {row["day"]: row["count"] for row in message_rows}
+    audit = [
+        {
+            "action": row["action"],
+            "actor": row["actor"],
+            "createdAt": row["created_at"],
+        }
+        for row in audit_rows
+    ]
+    return jsonify(
+        {
+            "totals": totals,
+            "series": {
+                "accounts": [
+                    {"date": day.isoformat(), "count": account_counts.get(day.isoformat(), 0)}
+                    for day in days
+                ],
+                "messages": [
+                    {"date": day.isoformat(), "count": message_counts.get(day.isoformat(), 0)}
+                    for day in days
+                ],
+            },
+            "controls": control_state(),
+            "announcement": get_announcement(),
+            "audit": audit,
+        }
+    )
+
+
+@app.get("/api/admin/users")
+def admin_list_users():
+    _, failure = require_management_user()
+    if failure:
+        return failure
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, username, email, role, created_at
+            FROM users WHERE deletion_requested_at IS NULL
+            ORDER BY created_at DESC LIMIT 1000
+            """
+        ).fetchall()
+    return jsonify(
+        {
+            "users": [
+                {
+                    "id": row["id"],
+                    "username": row["username"],
+                    "email": row["email"],
+                    "role": role_for_user(row),
+                    "createdAt": row["created_at"],
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@app.patch("/api/admin/users/<user_id>")
+def admin_update_user_role(user_id: str):
+    admin, failure = require_management_user(admin_only=True)
+    if failure:
+        return failure
+    data = request.get_json(silent=True) or {}
+    role = str(data.get("role", "")).strip().lower()
+    allowed_roles = {"user", "soldier", "moraltown", "admin", "co_founder", "og", "fed"}
+    if role not in allowed_roles:
+        return error_response("Choose a supported account role.", 400)
+    with db_connection() as connection:
+        connection.execute(
+            "UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND deletion_requested_at IS NULL",
+            (role, utc_now(), user_id),
+        )
+        row = connection.execute(
+            """
+            SELECT id, username, email, role, created_at
+            FROM users WHERE id = ? AND deletion_requested_at IS NULL
+            """,
+            (user_id,),
+        ).fetchone()
+    if not row:
+        return error_response("Account not found.", 404)
+    write_admin_audit(
+        f"Changed role for {row['username']} to {role}",
+        str(admin["username"]),
+    )
+    return jsonify(
+        {
+            "user": {
+                "id": row["id"],
+                "username": row["username"],
+                "email": row["email"],
+                "role": role_for_user(row),
+                "createdAt": row["created_at"],
+            }
+        }
+    )
+
+
+@app.post("/api/admin/control")
+def admin_update_control():
+    admin, failure = require_management_user()
+    if failure:
+        return failure
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key", "")).strip()
+    enabled = data.get("enabled")
+    if not isinstance(enabled, bool):
+        return error_response("An enabled boolean is required.", 400)
+    setting = {
+        "lockdown": ("lockdown", "Mailbox lockdown"),
+        "apiPaused": ("api_paused", "API traffic pause"),
+        "sendingEnabled": ("sending_enabled", "Outbound mail"),
+        "receivingEnabled": ("receiving_enabled", "Inbound mail"),
+    }.get(key)
+    if not setting:
+        return error_response("Choose a supported operating control.", 400)
+    setting_key, label = setting
+    if key == "lockdown":
+        message = str(data.get("message", "")).strip()[:500]
+        if enabled and not message:
+            message = "WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON"
+        write_system_setting("lockdown_message", message)
+    write_system_setting(setting_key, "1" if enabled else "0")
+    write_admin_audit(
+        f"{label} {'enabled' if enabled else 'disabled'}",
+        str(admin["username"]),
+    )
+    return jsonify({"controls": control_state()})
+
+
+@app.post("/api/admin/announcement")
+def admin_update_announcement():
+    admin, failure = require_management_user()
+    if failure:
+        return failure
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+    if len(message) > 500:
+        return error_response("Announcements are limited to 500 characters.", 400)
+    with db_connection() as connection:
+        if message:
+            connection.execute(
+                """
+                INSERT INTO site_announcements(id, message, updated_at)
+                VALUES (1, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  message = excluded.message, updated_at = excluded.updated_at
+                """,
+                (message, utc_now()),
+            )
+        else:
+            connection.execute("DELETE FROM site_announcements WHERE id = 1")
+    write_admin_audit(
+        "Published an announcement" if message else "Cleared the announcement",
+        str(admin["username"]),
+    )
+    return jsonify({"announcement": get_announcement()})
 
 
 def public_payment_order(order: sqlite3.Row) -> dict[str, Any]:
@@ -1421,6 +2164,8 @@ def start_account_deletion_worker() -> None:
 @app.post("/api/auth/signup")
 def signup():
     data = request.get_json(silent=True) or {}
+    if not consume_captcha(data):
+        return error_response("Complete the human check and try again.", 400)
     access_key = str(data.get("accessKey", "")).strip()
     username = normalize_username(str(data.get("username", "")))
     if not valid_access_key(access_key) or not valid_username(username):
@@ -1442,6 +2187,7 @@ def signup():
         "id": new_id(),
         "access_key_hash": hash_access_key(access_key),
         "access_key_ciphertext": encrypt_access_key(access_key),
+        "access_key_lookup_hash": hash_access_key_lookup(access_key),
         "username": username,
         "email": mailbox_address(username),
         "purchase_email": None,
@@ -1508,9 +2254,11 @@ def signup():
             connection.execute(
                 """
                 INSERT INTO users
-                   (id, access_key_hash, access_key_ciphertext, username, email, purchase_email, email_changes_remaining,
+                   (id, access_key_hash, access_key_ciphertext, access_key_lookup_hash,
+                    username, email, role, purchase_email, email_changes_remaining,
                    email_change_year, created_at, updated_at)
-                VALUES (:id, :access_key_hash, :access_key_ciphertext, :username, :email, :purchase_email, :email_changes_remaining,
+                VALUES (:id, :access_key_hash, :access_key_ciphertext, :access_key_lookup_hash,
+                        :username, :email, 'user', :purchase_email, :email_changes_remaining,
                         :email_change_year, :created_at, :updated_at)
                 """,
                 user,
@@ -1523,16 +2271,19 @@ def signup():
             connection.execute(
                 """
                 INSERT INTO messages
-                  (id, user_id, folder, sender, recipient, subject, body, received_at, is_read)
-                VALUES (?, ?, 'inbox', ?, ?, ?, ?, ?, 0)
+                  (id, user_id, folder, sender, recipient, subject, body,
+                   content_encrypted, received_at, is_read)
+                VALUES (?, ?, 'inbox', ?, ?, ?, ?, 1, ?, 0)
                 """,
                 (
                     new_id(),
                     user["id"],
-                    f"hello@{MAIL_DOMAIN}",
-                    user["email"],
-                        "Welcome to MoralTown",
-                    "Your private inbox is ready. Send your first message from the compose button.",
+                    encrypt_mailbox_text(f"hello@{MAIL_DOMAIN}"),
+                    encrypt_mailbox_text(user["email"]),
+                    encrypt_mailbox_text("Welcome to MoralTown"),
+                    encrypt_mailbox_text(
+                        "Your private inbox is ready. Send your first message from the compose button."
+                    ),
                     now,
                 ),
             )
@@ -1554,14 +2305,42 @@ def signup():
 @app.post("/api/auth/signin")
 def signin():
     data = request.get_json(silent=True) or {}
+    if not consume_captcha(data):
+        return error_response("Complete the human check and try again.", 400)
     access_key = str(data.get("accessKey", "")).strip()
     if not valid_access_key(access_key):
         return error_response("Access key rejected.", 401)
+    if is_admin_login_key(access_key):
+        session.clear()
+        session.permanent = True
+        session["admin_authenticated"] = True
+        return jsonify({"user": public_user(admin_account()), "firstLogin": False})
+    lookup_hash = hash_access_key_lookup(access_key)
     with db_connection() as connection:
-        user = connection.execute(
-            "SELECT * FROM users WHERE deletion_requested_at IS NULL"
-        ).fetchall()
-    matching = next((row for row in user if check_access_key(access_key, row["access_key_hash"])), None)
+        matching = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE access_key_lookup_hash = ? AND deletion_requested_at IS NULL
+            """,
+            (lookup_hash,),
+        ).fetchone()
+        if not matching:
+            legacy = connection.execute(
+                """
+                SELECT * FROM users
+                WHERE access_key_lookup_hash IS NULL AND deletion_requested_at IS NULL
+                LIMIT 100
+                """
+            ).fetchall()
+            matching = next(
+                (
+                    row for row in legacy
+                    if check_access_key(access_key, row["access_key_hash"])
+                ),
+                None,
+            )
+    if matching and not check_access_key(access_key, matching["access_key_hash"]):
+        matching = None
     if not matching:
         return error_response("Access key rejected.", 401)
     session.clear()
@@ -1591,8 +2370,19 @@ def rotate_access_key():
     access_key = generate_access_key()
     with db_connection() as connection:
         connection.execute(
-            "UPDATE users SET access_key_hash = ?, access_key_ciphertext = ?, updated_at = ? WHERE id = ?",
-            (hash_access_key(access_key), encrypt_access_key(access_key), utc_now(), user["id"]),
+            """
+            UPDATE users
+            SET access_key_hash = ?, access_key_ciphertext = ?,
+                access_key_lookup_hash = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                hash_access_key(access_key),
+                encrypt_access_key(access_key),
+                hash_access_key_lookup(access_key),
+                utc_now(),
+                user["id"],
+            ),
         )
     return jsonify({"accessKey": access_key, "rotatedAt": utc_now()})
 
