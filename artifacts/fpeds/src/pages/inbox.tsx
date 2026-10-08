@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Check,
   ChevronRight,
+  FolderInput,
   MailOpen,
   RefreshCw,
   Search,
@@ -15,9 +17,11 @@ import {
   getGetMessageQueryKey,
   getGetMailboxSummaryQueryKey,
   getListMessagesQueryKey,
+  getListFoldersQueryKey,
   useGetMessage,
   useGetMailboxSummary,
   useListMessages,
+  useListFolders,
   useUpdateMessage,
 } from '@workspace/api-client-react';
 import type { Message } from '@workspace/api-client-react';
@@ -26,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { ErrorBlock, LoadingBlock, MailShell } from '@/components/mail-shell';
 import { SafeLinkifiedText } from '@/components/safe-linkified-text';
 import { getCurrentLocale } from '@/lib/language';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat(getCurrentLocale(), {
@@ -43,6 +48,16 @@ const initials = (name: string) =>
     .map((part) => part[0])
     .join('')
     .toUpperCase();
+
+function mutationErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object' && 'data' in error) {
+    const data = (error as { data?: unknown }).data;
+    if (data && typeof data === 'object' && 'error' in data) {
+      return String((data as { error?: unknown }).error ?? fallback);
+    }
+  }
+  return fallback;
+}
 
 function MessageRow({ message, select }: { message: Message; select: (id: string) => void }) {
   const queryClient = useQueryClient();
@@ -120,6 +135,7 @@ function MessageRow({ message, select }: { message: Message; select: (id: string
 export default function InboxPage({ folder }: { folder: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [messageActionError, setMessageActionError] = useState('');
   const queryClient = useQueryClient();
   const messagesQuery = useListMessages(
     { folder, q: search || undefined },
@@ -146,12 +162,16 @@ export default function InboxPage({ folder }: { folder: string }) {
       queryKey: getGetMessageQueryKey(selectedId ?? ''),
     },
   });
+  const foldersQuery = useListFolders();
   const update = useUpdateMessage();
   const messages = messagesQuery.data ?? [];
   const label = folder === 'inbox' ? 'Inbox' : folder[0].toUpperCase() + folder.slice(1);
 
   const select = (id: string) => setSelectedId(id);
-  const closeMessage = () => setSelectedId(null);
+  const closeMessage = () => {
+    setSelectedId(null);
+    setMessageActionError('');
+  };
   const markRead = (id: string) =>
     update.mutate(
       { id, data: { isRead: true } },
@@ -172,6 +192,25 @@ export default function InboxPage({ folder }: { folder: string }) {
           queryClient.setQueryData(getGetMessageQueryKey(selectedId), data);
           queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey() });
         },
+      },
+    );
+  };
+  const moveSelectedMessage = (destination: string) => {
+    if (!selectedId || !messageQuery.data || !destination) return;
+    setMessageActionError('');
+    update.mutate(
+      { id: selectedId, data: { folder: destination } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListFoldersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetMailboxSummaryQueryKey() });
+          queryClient.removeQueries({ queryKey: getGetMessageQueryKey(selectedId) });
+          closeMessage();
+        },
+        onError: (cause: unknown) => setMessageActionError(
+          mutationErrorMessage(cause, 'The email could not be moved. Please try again.'),
+        ),
       },
     );
   };
@@ -252,14 +291,14 @@ export default function InboxPage({ folder }: { folder: string }) {
           )}
         </div>
       </div>
-      {selectedId && (
+      {selectedId && createPortal((
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-md"
+          className="fixed inset-0 z-[100] flex justify-end bg-black/65 backdrop-blur-md"
           onClick={(event) => {
             if (event.target === event.currentTarget) closeMessage();
           }}
         >
-           <article className="glass h-full w-full max-w-[760px] overflow-y-auto border-y-0 border-r-0 shadow-[-20px_0_80px_hsl(0_0%_0%/.45)] animate-enter">
+           <article role="dialog" aria-modal="true" aria-label="Open email" className="glass h-full w-full max-w-[760px] overflow-y-auto border-y-0 border-r-0 shadow-[-20px_0_80px_hsl(0_0%_0%/.45)] animate-enter">
              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-black/20 px-4 py-3 backdrop-blur-2xl sm:px-8">
               <button
                 onClick={closeMessage}
@@ -281,6 +320,26 @@ export default function InboxPage({ folder }: { folder: string }) {
                 >
                   <Star className={`h-4 w-4 ${messageQuery.data?.isStarred ? 'fill-primary text-primary' : ''}`} />
                 </Button>
+                <Select value="" onValueChange={moveSelectedMessage}>
+                  <SelectTrigger
+                    aria-label="Move message to folder"
+                    disabled={update.isPending}
+                    className="h-9 w-9 border-white/15 bg-white/[.04] px-0 text-muted-foreground hover:border-primary/50 hover:text-primary [&>svg:last-child]:hidden"
+                    data-testid="select-message-folder"
+                  >
+                    <FolderInput className="h-4 w-4" />
+                    <SelectValue placeholder="Move" className="sr-only" />
+                  </SelectTrigger>
+                  <SelectContent align="end" className="border-white/10 bg-[#151313] text-foreground">
+                    {[...new Set(['inbox', 'sent', 'drafts', 'spam', ...(foldersQuery.data ?? []).map((item) => item.name)])]
+                      .filter((name) => name !== messageQuery.data?.folder)
+                      .map((name) => (
+                        <SelectItem key={name} value={name} data-testid={`option-message-folder-${name}`}>
+                          {name[0].toUpperCase() + name.slice(1)}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="outline"
                   size="icon"
@@ -293,6 +352,7 @@ export default function InboxPage({ folder }: { folder: string }) {
                 </Button>
               </div>
             </div>
+            {messageActionError && <p role="alert" className="border-b border-primary/20 bg-primary/[.07] px-5 py-3 text-xs text-primary sm:px-8" data-testid="status-message-action-error">{messageActionError}</p>}
             {messageQuery.isLoading ? (
               <LoadingBlock label="Opening message" />
             ) : messageQuery.isError || !messageQuery.data ? (
@@ -336,7 +396,7 @@ export default function InboxPage({ folder }: { folder: string }) {
             )}
           </article>
         </div>
-      )}
+      ), document.body)}
     </MailShell>
   );
 }

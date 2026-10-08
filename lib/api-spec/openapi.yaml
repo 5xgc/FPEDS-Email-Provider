@@ -384,6 +384,71 @@ paths:
                 $ref: "#/components/schemas/User"
         "400":
           description: Invalid change or annual limit reached
+  /mailboxes:
+    get:
+      operationId: listMailboxAccounts
+      tags: [mailbox]
+      summary: List mailboxes attached to the signed-in access key
+      responses:
+        "200":
+          description: Mailboxes available to this account
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MailboxAccount"
+        "401":
+          description: Not signed in
+    post:
+      operationId: createMailboxAccount
+      tags: [mailbox]
+      summary: Create another mailbox under the existing account access key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMailboxAccountInput"
+      responses:
+        "201":
+          description: Created mailbox
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailboxAccount"
+        "400":
+          description: Invalid mailbox name
+        "409":
+          description: Mailbox name already exists
+        "401":
+          description: Not signed in
+  /mailboxes/switch:
+    post:
+      operationId: switchMailboxAccount
+      tags: [mailbox]
+      summary: Switch the current session to another mailbox on this account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailboxSwitchInput"
+      responses:
+        "200":
+          description: Active mailbox changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+        "404":
+          description: Mailbox is not part of this account
+        "401":
+          description: Not signed in
   /mailbox/summary:
     get:
       operationId: getMailboxSummary
@@ -687,6 +752,7 @@ components:
           maxLength: 50
         captchaToken: { type: string, minLength: 16, maxLength: 128 }
         captchaAnswer: { type: string, pattern: '^\d{1,3}$' }
+        adminOnly: { type: boolean, default: false }
     AuthSession:
       type: object
       required: [user, firstLogin]
@@ -716,6 +782,25 @@ components:
         createdAt: { type: string, format: date-time }
         emailChangesRemaining: { type: number }
         role: { type: string, enum: [user, soldier, moraltown, admin, co_founder, og, fed] }
+    MailboxAccount:
+      type: object
+      required: [id, username, email, createdAt, isCurrent]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        createdAt: { type: string, format: date-time }
+        isCurrent: { type: boolean }
+    CreateMailboxAccountInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+    MailboxSwitchInput:
+      type: object
+      required: [mailboxId]
+      properties:
+        mailboxId: { type: string, minLength: 1 }
     SecurityChallenge:
       type: object
       required: [token, question, expiresAt]

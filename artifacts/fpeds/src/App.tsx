@@ -66,7 +66,7 @@ type PublicSiteStatus = {
 
 function SiteAccessGate({ children }: { children: ReactNode }) {
   const currentUser = useGetCurrentUser();
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const [status, setStatus] = useState<PublicSiteStatus | null>(null);
   const [statusError, setStatusError] = useState(false);
   const refreshStatus = useCallback(async () => {
@@ -97,31 +97,27 @@ function SiteAccessGate({ children }: { children: ReactNode }) {
     return <main className="grid min-h-[100dvh] place-items-center bg-black text-white"><p className="font-mono text-xs uppercase tracking-[.2em] text-white/50">Checking account access…</p></main>;
   }
   if (status?.lockdown && role !== 'admin') {
-    const signedIn = Boolean(currentUser.data);
-    if (!signedIn && location.split('?')[0] === '/auth') return <>{children}</>;
+    if (!currentUser.data && location.split('?')[0] === '/auth') return <>{children}</>;
     return <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-black px-5 py-12 text-center text-white">
       <p className="font-mono text-[10px] uppercase tracking-[.28em] text-white/50">MoralTown service notice</p>
       <h1 className="mt-6 max-w-5xl text-balance text-4xl font-black leading-[1.04] tracking-[-.04em] sm:text-6xl md:text-8xl">
         {status.lockdownMessage || 'WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON'}
       </h1>
       <p className="mt-6 text-sm text-white/55">Mailbox access is temporarily unavailable.</p>
-      {!signedIn && <button
-        type="button"
-        onClick={() => setLocation('/auth')}
-        className="mt-7 rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-      >
-        Admin sign in
-      </button>}
-      {signedIn && <button
+      <button
         type="button"
         onClick={async () => {
-          await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
-          window.location.replace('/auth');
+          try {
+            await fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin' });
+          } finally {
+            window.location.replace('/auth?mode=signin&admin=1');
+          }
         }}
         className="mt-7 rounded-xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        data-testid="button-admin-signin"
       >
-        Sign out
-      </button>}
+        Admin sign in
+      </button>
       <button
         type="button"
         onClick={() => window.location.replace('about:blank')}

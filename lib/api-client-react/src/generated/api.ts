@@ -32,12 +32,15 @@ import type {
   AdminUserRoleUpdate,
   AdminUserUpdateResult,
   AuthSession,
+  CreateMailboxAccountInput,
   Folder,
   FolderInput,
   HealthStatus,
   InboundWebhook,
   ListMessagesParams,
+  MailboxAccount,
   MailboxSummary,
+  MailboxSwitchInput,
   Message,
   MessageUpdate,
   Notification,
@@ -54,6 +57,7 @@ import type {
   SignUpInput,
   Subscription,
   SubscriptionInput,
+  SwitchMailboxAccount200,
   User,
   ValidatePaymentClaimParams
 } from './api.schemas';
@@ -1643,6 +1647,225 @@ export const useUpdateProfile = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateProfileMutationOptions(options));
+    }
+
+export const getListMailboxAccountsUrl = () => {
+
+
+
+
+  return `/api/mailboxes`
+}
+
+/**
+ * @summary List mailboxes attached to the signed-in access key
+ */
+export const listMailboxAccounts = async ( options?: Parameters<typeof customFetch>[1]): Promise<MailboxAccount[]> => {
+
+  return customFetch<MailboxAccount[]>(getListMailboxAccountsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMailboxAccountsQueryKey = () => {
+    return [
+    `/api/mailboxes`
+    ] as const;
+    }
+
+
+export const getListMailboxAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listMailboxAccounts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMailboxAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMailboxAccountsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMailboxAccounts>>> = ({ signal }) => listMailboxAccounts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMailboxAccounts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMailboxAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listMailboxAccounts>>>
+export type ListMailboxAccountsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List mailboxes attached to the signed-in access key
+ */
+
+export function useListMailboxAccounts<TData = Awaited<ReturnType<typeof listMailboxAccounts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMailboxAccounts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMailboxAccountsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateMailboxAccountUrl = () => {
+
+
+
+
+  return `/api/mailboxes`
+}
+
+/**
+ * @summary Create another mailbox under the existing account access key
+ */
+export const createMailboxAccount = async (createMailboxAccountInput: CreateMailboxAccountInput, options?: Parameters<typeof customFetch>[1]): Promise<MailboxAccount> => {
+
+  return customFetch<MailboxAccount>(getCreateMailboxAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createMailboxAccountInput)
+  }
+);}
+
+
+
+
+
+export const getCreateMailboxAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMailboxAccount>>, TError,{data: BodyType<CreateMailboxAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createMailboxAccount>>, TError,{data: BodyType<CreateMailboxAccountInput>}, TContext> => {
+
+const mutationKey = ['createMailboxAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMailboxAccount>>, {data: BodyType<CreateMailboxAccountInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createMailboxAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateMailboxAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createMailboxAccount>>>
+    export type CreateMailboxAccountMutationBody = BodyType<CreateMailboxAccountInput>
+    export type CreateMailboxAccountMutationError = ErrorType<void>
+
+    /**
+ * @summary Create another mailbox under the existing account access key
+ */
+export const useCreateMailboxAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMailboxAccount>>, TError,{data: BodyType<CreateMailboxAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createMailboxAccount>>,
+        TError,
+        {data: BodyType<CreateMailboxAccountInput>},
+        TContext
+      > => {
+      return useMutation(getCreateMailboxAccountMutationOptions(options));
+    }
+
+export const getSwitchMailboxAccountUrl = () => {
+
+
+
+
+  return `/api/mailboxes/switch`
+}
+
+/**
+ * @summary Switch the current session to another mailbox on this account
+ */
+export const switchMailboxAccount = async (mailboxSwitchInput: MailboxSwitchInput, options?: Parameters<typeof customFetch>[1]): Promise<SwitchMailboxAccount200> => {
+
+  return customFetch<SwitchMailboxAccount200>(getSwitchMailboxAccountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mailboxSwitchInput)
+  }
+);}
+
+
+
+
+
+export const getSwitchMailboxAccountMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof switchMailboxAccount>>, TError,{data: BodyType<MailboxSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof switchMailboxAccount>>, TError,{data: BodyType<MailboxSwitchInput>}, TContext> => {
+
+const mutationKey = ['switchMailboxAccount'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof switchMailboxAccount>>, {data: BodyType<MailboxSwitchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  switchMailboxAccount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SwitchMailboxAccountMutationResult = NonNullable<Awaited<ReturnType<typeof switchMailboxAccount>>>
+    export type SwitchMailboxAccountMutationBody = BodyType<MailboxSwitchInput>
+    export type SwitchMailboxAccountMutationError = ErrorType<void>
+
+    /**
+ * @summary Switch the current session to another mailbox on this account
+ */
+export const useSwitchMailboxAccount = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof switchMailboxAccount>>, TError,{data: BodyType<MailboxSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof switchMailboxAccount>>,
+        TError,
+        {data: BodyType<MailboxSwitchInput>},
+        TContext
+      > => {
+      return useMutation(getSwitchMailboxAccountMutationOptions(options));
     }
 
 export const getGetMailboxSummaryUrl = () => {

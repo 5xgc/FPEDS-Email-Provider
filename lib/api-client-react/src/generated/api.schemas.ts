@@ -124,6 +124,7 @@ export interface SignInInput {
   captchaToken: string;
   /** @pattern ^\d{1,3}$ */
   captchaAnswer: string;
+  adminOnly?: boolean;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -168,6 +169,27 @@ export interface RotatedAccessKey {
      */
   accessKey: string;
   rotatedAt: string;
+}
+
+export interface MailboxAccount {
+  id: string;
+  username: string;
+  email: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+export interface CreateMailboxAccountInput {
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  name: string;
+}
+
+export interface MailboxSwitchInput {
+  /** @minLength 1 */
+  mailboxId: string;
 }
 
 export interface SecurityChallenge {
@@ -433,6 +455,10 @@ export type ValidatePaymentClaimParams = {
  * @maxLength 128
  */
 token: string;
+};
+
+export type SwitchMailboxAccount200 = {
+  user: User;
 };
 
 export type ListMessagesParams = {

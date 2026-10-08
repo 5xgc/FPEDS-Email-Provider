@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Activity, Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, ShieldCheck, Star, Tag, X } from 'lucide-react';
 import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut } from '@workspace/api-client-react';
 import { BrandLogo } from '@/components/brand-logo';
+import { MailboxAccountControl } from '@/components/mailbox-account-control';
 import { Button } from '@/components/ui/button';
 import { PREFERENCES_CHANGED_EVENT, readPreference } from '@/lib/preferences';
 export function LogoMark() {
@@ -24,7 +25,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   const username = userQuery.data?.username ?? 'name';
   const role = String((userQuery.data as unknown as { role?: string } | undefined)?.role ?? 'user');
   const canSeeAdmin = role === 'admin' || role === 'co_founder';
-  const sendingAddress = `${username}@fpeds.2bd.net`;
+  const sendingAddress = userQuery.data?.email ?? `${username}@fpdf.2bd.net`;
   const receivingAddress = userQuery.data?.email ?? `${username}@fpdf.2bd.net`;
   const [serviceStatus, setServiceStatus] = useState<{ mailboxReady: boolean; warnings: string[]; announcement: { message: string; updatedAt: string } | null } | null>(null);
   const close = () => setOpen(false);
@@ -117,6 +118,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
            <div className="mt-3 shrink-0 space-y-1 border-t border-white/10 pt-3">
             {canSeeAdmin && <Link href="/admin" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-admin"><Activity className="h-4 w-4" /> Admin console</Link>}
             <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-settings"><Settings className="h-4 w-4" /> Settings</Link>
+             <MailboxAccountControl isAdmin={role === 'admin'} />
             <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start px-3 text-sm text-muted-foreground hover:text-foreground" data-testid="button-signout"><LogOut className="h-4 w-4" /> {signOut.isPending ? 'Closing session…' : 'Sign out'}</Button>
           </div>
         </aside>

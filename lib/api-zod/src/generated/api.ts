@@ -367,12 +367,13 @@ export const signInBodyCaptchaTokenMin = 16;
 export const signInBodyCaptchaTokenMax = 128;
 
 export const signInBodyCaptchaAnswerRegExp = new RegExp('^\\d{1,3}$');
-
+export const signInBodyAdminOnlyDefault = false;
 
 export const SignInBody = zod.object({
   "accessKey": zod.string().min(signInBodyAccessKeyMin).max(signInBodyAccessKeyMax),
   "captchaToken": zod.string().min(signInBodyCaptchaTokenMin).max(signInBodyCaptchaTokenMax),
-  "captchaAnswer": zod.string().regex(signInBodyCaptchaAnswerRegExp)
+  "captchaAnswer": zod.string().regex(signInBodyCaptchaAnswerRegExp),
+  "adminOnly": zod.boolean().default(signInBodyAdminOnlyDefault)
 })
 
 export const SignInResponse = zod.object({
@@ -452,6 +453,61 @@ export const UpdateProfileResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "emailChangesRemaining": zod.number(),
   "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
+})
+
+
+/**
+ * @summary List mailboxes attached to the signed-in access key
+ */
+export const ListMailboxAccountsResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "isCurrent": zod.boolean()
+})
+export const ListMailboxAccountsResponse = zod.array(ListMailboxAccountsResponseItem)
+
+
+/**
+ * @summary Create another mailbox under the existing account access key
+ */
+export const createMailboxAccountBodyNameMax = 40;
+
+
+
+export const CreateMailboxAccountBody = zod.object({
+  "name": zod.string().min(1).max(createMailboxAccountBodyNameMax)
+})
+
+export const CreateMailboxAccountResponse = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "isCurrent": zod.boolean()
+})
+
+
+/**
+ * @summary Switch the current session to another mailbox on this account
+ */
+
+
+
+export const SwitchMailboxAccountBody = zod.object({
+  "mailboxId": zod.string().min(1)
+})
+
+export const SwitchMailboxAccountResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "emailChangesRemaining": zod.number(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
+})
 })
 
 

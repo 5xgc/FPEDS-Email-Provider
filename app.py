@@ -260,6 +260,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS users (
               id TEXT PRIMARY KEY,
+              owner_user_id TEXT,
               access_key_hash TEXT NOT NULL UNIQUE,
               access_key_ciphertext TEXT,
               access_key_lookup_hash TEXT UNIQUE,
@@ -396,6 +397,7 @@ def init_db() -> None:
             if "duplicate column name" not in str(exc).lower():
                 raise
         migrations = (
+            ("users", "owner_user_id", "TEXT"),
             ("users", "access_key_lookup_hash", "TEXT"),
             ("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
             ("messages", "content_encrypted", "INTEGER NOT NULL DEFAULT 0"),
@@ -421,6 +423,12 @@ def init_db() -> None:
                 connection.execute(
                     f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
                 )
+        connection.execute(
+            "UPDATE users SET owner_user_id = id WHERE owner_user_id IS NULL"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS users_owner_user_id_idx ON users(owner_user_id)"
+        )
         connection.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS users_access_key_lookup_hash_idx
@@ -786,10 +794,21 @@ def current_user() -> sqlite3.Row | dict[str, Any] | None:
     if not user_id:
         return None
     with db_connection() as connection:
-        return connection.execute(
+        user = connection.execute(
             "SELECT * FROM users WHERE id = ? AND deletion_requested_at IS NULL",
             (user_id,),
         ).fetchone()
+    if user and not session.get("account_user_id"):
+        session["account_user_id"] = user["owner_user_id"] or user["id"]
+    return user
+
+
+def account_owner_id(user: sqlite3.Row | dict[str, Any]) -> str:
+    try:
+        stored_owner_id = user["owner_user_id"]
+    except (KeyError, IndexError):
+        stored_owner_id = None
+    return str(session.get("account_user_id") or stored_owner_id or user["id"])
 
 
 def require_user() -> sqlite3.Row | dict[str, Any]:
@@ -1663,6 +1682,7 @@ def protect_request():
             or path == "/api/messages"
             or path.startswith("/api/messages/")
             or path.startswith("/api/mailbox/")
+            or path.startswith("/api/mailboxes")
             or path.startswith("/api/folders")
             or path.startswith("/api/notifications")
             or path.startswith("/api/subscriptions")
@@ -2452,17 +2472,29 @@ def process_due_account_deletions(now: int | None = None) -> int:
                 break
 
             user_id = job["user_id"]
+            mailbox_ids = [
+                row["id"]
+                for row in connection.execute(
+                    "SELECT id FROM users WHERE id = ? OR owner_user_id = ?",
+                    (user_id, user_id),
+                ).fetchall()
+            ]
             # Repeat the account-scoped sweep while the job is active; foreign
             # key cascades provide a final safety net when the tombstone drops.
             for table in ("messages", "folders", "notifications", "subscriptions"):
-                connection.execute(
-                    f"DELETE FROM {table} WHERE user_id = ?", (user_id,)
+                connection.executemany(
+                    f"DELETE FROM {table} WHERE user_id = ?",
+                    [(mailbox_id,) for mailbox_id in mailbox_ids],
                 )
 
             if timestamp >= int(job["completes_at"]):
                 connection.execute(
-                    "DELETE FROM users WHERE id = ? AND deletion_requested_at IS NOT NULL",
-                    (user_id,),
+                    """
+                    DELETE FROM users
+                    WHERE (id = ? OR owner_user_id = ?)
+                      AND deletion_requested_at IS NOT NULL
+                    """,
+                    (user_id, user_id),
                 )
                 connection.execute(
                     "DELETE FROM account_deletion_jobs WHERE id = ?", (job["id"],)
@@ -2540,6 +2572,7 @@ def signup():
         "access_key_hash": hash_access_key(access_key),
         "access_key_ciphertext": encrypt_access_key(access_key),
         "access_key_lookup_hash": hash_access_key_lookup(access_key),
+        "owner_user_id": None,
         "username": username,
         "email": mailbox_address(username),
         "purchase_email": None,
@@ -2548,6 +2581,7 @@ def signup():
         "created_at": now,
         "updated_at": now,
     }
+    user["owner_user_id"] = user["id"]
     try:
         with db_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -2606,10 +2640,10 @@ def signup():
             connection.execute(
                 """
                 INSERT INTO users
-                   (id, access_key_hash, access_key_ciphertext, access_key_lookup_hash,
+                   (id, owner_user_id, access_key_hash, access_key_ciphertext, access_key_lookup_hash,
                     username, email, role, purchase_email, email_changes_remaining,
                    email_change_year, created_at, updated_at)
-                VALUES (:id, :access_key_hash, :access_key_ciphertext, :access_key_lookup_hash,
+                VALUES (:id, :owner_user_id, :access_key_hash, :access_key_ciphertext, :access_key_lookup_hash,
                         :username, :email, 'user', :purchase_email, :email_changes_remaining,
                         :email_change_year, :created_at, :updated_at)
                 """,
@@ -2651,6 +2685,7 @@ def signup():
     session.clear()
     session.permanent = True
     session["user_id"] = user["id"]
+    session["account_user_id"] = user["id"]
     return jsonify({"user": public_user(user), "firstLogin": True}), 201
 
 
@@ -2667,6 +2702,10 @@ def signin():
         session.permanent = True
         session["admin_authenticated"] = True
         return jsonify({"user": public_user(admin_account()), "firstLogin": False})
+    if bool(data.get("adminOnly")) or control_state()["lockdown"]:
+        return error_response(
+            "Only the administrator access key is accepted for this sign-in.", 401
+        )
     lookup_hash = hash_access_key_lookup(access_key)
     with db_connection() as connection:
         matching = connection.execute(
@@ -2698,6 +2737,7 @@ def signin():
     session.clear()
     session.permanent = True
     session["user_id"] = matching["id"]
+    session["account_user_id"] = matching["owner_user_id"] or matching["id"]
     return jsonify({"user": public_user(matching), "firstLogin": False})
 
 
@@ -2707,7 +2747,15 @@ def get_access_key():
         user = require_user()
     except PermissionError as exc:
         return error_response(str(exc), 401)
-    access_key = decrypt_access_key(user["access_key_ciphertext"] or "")
+    if role_for_user(user) == "admin":
+        return error_response("The admin access key cannot be revealed here.", 403)
+    owner_id = account_owner_id(user)
+    with db_connection() as connection:
+        owner = connection.execute(
+            "SELECT access_key_ciphertext FROM users WHERE id = ? AND deletion_requested_at IS NULL",
+            (owner_id,),
+        ).fetchone()
+    access_key = decrypt_access_key(owner["access_key_ciphertext"] or "") if owner else None
     if not access_key:
         return error_response("This legacy account needs a key refresh before it can be revealed.", 409)
     return jsonify({"accessKey": access_key})
@@ -2719,21 +2767,24 @@ def rotate_access_key():
         user = require_user()
     except PermissionError as exc:
         return error_response(str(exc), 401)
+    if role_for_user(user) == "admin":
+        return error_response("The admin access key cannot be rotated here.", 403)
     access_key = generate_access_key()
+    owner_id = account_owner_id(user)
     with db_connection() as connection:
         connection.execute(
             """
             UPDATE users
             SET access_key_hash = ?, access_key_ciphertext = ?,
                 access_key_lookup_hash = ?, updated_at = ?
-            WHERE id = ?
+            WHERE id = ? AND deletion_requested_at IS NULL
             """,
             (
                 hash_access_key(access_key),
                 encrypt_access_key(access_key),
                 hash_access_key_lookup(access_key),
                 utc_now(),
-                user["id"],
+                owner_id,
             ),
         )
     return jsonify({"accessKey": access_key, "rotatedAt": utc_now()})
@@ -2762,9 +2813,20 @@ def request_account_deletion():
         return error_response("Sign in required.", 401)
 
     body = request.get_json(silent=True)
+    if role_for_user(user) == "admin":
+        return error_response("Admin sessions do not have personal accounts.", 403)
+    owner_id = account_owner_id(user)
     access_key = str(body.get("accessKey", "") if isinstance(body, dict) else "").strip()
-    if not valid_access_key(access_key) or not check_access_key(
-        access_key, user["access_key_hash"]
+    with db_connection() as connection:
+        owner = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE id = ? AND deletion_requested_at IS NULL
+            """,
+            (owner_id,),
+        ).fetchone()
+    if not owner or not valid_access_key(access_key) or not check_access_key(
+        access_key, owner["access_key_hash"]
     ):
         return error_response(
             "The current access key is required to delete this account.", 403
@@ -2773,28 +2835,32 @@ def request_account_deletion():
     now = int(time.time())
     deletion_token = secrets.token_urlsafe(32)
     deletion_id = new_id()
-    tombstone_username = f"deleted-{new_id()}"
-    tombstone_email = f"{tombstone_username}@invalid.invalid"
-
     with db_connection() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        current = connection.execute(
-            "SELECT * FROM users WHERE id = ? AND deletion_requested_at IS NULL",
-            (user["id"],),
-        ).fetchone()
+        members = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE (id = ? OR owner_user_id = ?) AND deletion_requested_at IS NULL
+            """,
+            (owner_id, owner_id),
+        ).fetchall()
+        current = next((member for member in members if member["id"] == owner_id), None)
         if not current:
             return error_response("This account is already being deleted.", 409)
 
         private_emails = sorted(
             {
                 value.strip()
-                for value in (current["email"], current["purchase_email"])
+                for member in members
+                for value in (member["email"], member["purchase_email"])
                 if value and value.strip()
             }
         )
+        member_ids = [member["id"] for member in members]
         for table in ("messages", "folders", "notifications", "subscriptions"):
-            connection.execute(
-                f"DELETE FROM {table} WHERE user_id = ?", (current["id"],)
+            connection.executemany(
+                f"DELETE FROM {table} WHERE user_id = ?",
+                [(member_id,) for member_id in member_ids],
             )
 
         if private_emails:
@@ -2813,24 +2879,27 @@ def request_account_deletion():
                 private_emails,
             )
 
-        connection.execute(
-            """
-            UPDATE users
-            SET access_key_hash = ?, access_key_ciphertext = NULL,
-                username = ?, email = ?, purchase_email = NULL,
-                email_changes_remaining = 0, deletion_requested_at = ?,
-                updated_at = ?
-            WHERE id = ?
-            """,
-            (
-                f"revoked${new_id()}",
-                tombstone_username,
-                tombstone_email,
-                now,
-                utc_now(),
-                current["id"],
-            ),
-        )
+        for member in members:
+            tombstone_username = f"deleted-{new_id()}"
+            connection.execute(
+                """
+                UPDATE users
+                SET access_key_hash = ?, access_key_ciphertext = NULL,
+                    access_key_lookup_hash = NULL,
+                    username = ?, email = ?, purchase_email = NULL,
+                    email_changes_remaining = 0, deletion_requested_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    f"revoked${new_id()}",
+                    tombstone_username,
+                    f"{tombstone_username}@invalid.invalid",
+                    now,
+                    utc_now(),
+                    member["id"],
+                ),
+            )
         connection.execute(
             """
             INSERT INTO account_deletion_jobs
@@ -2840,7 +2909,7 @@ def request_account_deletion():
             """,
             (
                 deletion_id,
-                current["id"],
+                owner_id,
                 hashlib.sha256(deletion_token.encode("utf-8")).hexdigest(),
                 now,
                 now + ACCOUNT_DELETION_SECONDS,
@@ -2906,6 +2975,156 @@ def account_deletion_status():
 def auth_me():
     user = current_user()
     return jsonify(public_user(user)) if user else error_response("Sign in required", 401)
+
+
+@app.get("/api/mailboxes")
+def list_mailbox_accounts():
+    try:
+        user = require_user()
+    except PermissionError as exc:
+        return error_response(str(exc), 401)
+    if role_for_user(user) == "admin":
+        return error_response("Admin sessions do not have personal mailboxes.", 403)
+    owner_id = account_owner_id(user)
+    active_id = str(user["id"])
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, username, email, created_at
+            FROM users
+            WHERE deletion_requested_at IS NULL
+              AND (owner_user_id = ? OR id = ?)
+            ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at, username
+            """,
+            (owner_id, owner_id, owner_id),
+        ).fetchall()
+    return jsonify(
+        [
+            {
+                "id": row["id"],
+                "username": row["username"],
+                "email": row["email"],
+                "createdAt": row["created_at"],
+                "isCurrent": row["id"] == active_id,
+            }
+            for row in rows
+        ]
+    )
+
+
+@app.post("/api/mailboxes")
+def create_mailbox_account():
+    try:
+        user = require_user()
+    except PermissionError as exc:
+        return error_response(str(exc), 401)
+    if role_for_user(user) == "admin":
+        return error_response("Admin sessions cannot create personal mailboxes.", 403)
+    requested_username = str((request.get_json(silent=True) or {}).get("name", ""))
+    username = normalize_username(requested_username)
+    if not valid_username(username):
+        return error_response("Choose an email name with at least one letter.", 400)
+
+    owner_id = account_owner_id(user)
+    now = utc_now()
+    child_id = new_id()
+    opaque_key = generate_access_key()
+    child = {
+        "id": child_id,
+        "owner_user_id": owner_id,
+        "access_key_hash": hash_access_key(opaque_key),
+        "access_key_ciphertext": encrypt_access_key(opaque_key),
+        "access_key_lookup_hash": hash_access_key_lookup(opaque_key),
+        "username": username,
+        "email": mailbox_address(username),
+        "email_changes_remaining": 2,
+        "email_change_year": datetime.now(timezone.utc).year,
+        "created_at": now,
+        "updated_at": now,
+    }
+    try:
+        with db_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            owner = connection.execute(
+                "SELECT id, role FROM users WHERE id = ? AND deletion_requested_at IS NULL",
+                (owner_id,),
+            ).fetchone()
+            if not owner:
+                return error_response("The primary account is not available.", 409)
+            connection.execute(
+                """
+                INSERT INTO users
+                  (id, owner_user_id, access_key_hash, access_key_ciphertext,
+                   access_key_lookup_hash, username, email, role, purchase_email,
+                   email_changes_remaining, email_change_year, created_at, updated_at)
+                VALUES
+                  (:id, :owner_user_id, :access_key_hash, :access_key_ciphertext,
+                   :access_key_lookup_hash, :username, :email, :role, NULL,
+                   :email_changes_remaining, :email_change_year, :created_at, :updated_at)
+                """,
+                {**child, "role": role_for_user(owner)},
+            )
+            for name in ("inbox", "sent", "drafts", "spam"):
+                connection.execute(
+                    "INSERT INTO folders (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
+                    (new_id(), child_id, name, now),
+                )
+            connection.execute(
+                """
+                INSERT INTO messages
+                  (id, user_id, folder, sender, recipient, subject, body,
+                   content_encrypted, received_at, is_read)
+                VALUES (?, ?, 'inbox', ?, ?, ?, ?, 1, ?, 0)
+                """,
+                (
+                    new_id(),
+                    child_id,
+                    encrypt_mailbox_text(f"hello@{MAIL_DOMAIN}"),
+                    encrypt_mailbox_text(child["email"]),
+                    encrypt_mailbox_text("Welcome to MoralTown"),
+                    encrypt_mailbox_text(
+                        "Your additional mailbox is ready. It uses the same account access key."
+                    ),
+                    now,
+                ),
+            )
+    except sqlite3.IntegrityError:
+        return error_response("That email name is already in use.", 409)
+    return jsonify(
+        {
+            "id": child_id,
+            "username": username,
+            "email": child["email"],
+            "createdAt": now,
+            "isCurrent": False,
+        }
+    ), 201
+
+
+@app.post("/api/mailboxes/switch")
+def switch_mailbox_account():
+    try:
+        user = require_user()
+    except PermissionError as exc:
+        return error_response(str(exc), 401)
+    if role_for_user(user) == "admin":
+        return error_response("Admin sessions do not have personal mailboxes.", 403)
+    mailbox_id = str((request.get_json(silent=True) or {}).get("mailboxId", "")).strip()
+    owner_id = account_owner_id(user)
+    with db_connection() as connection:
+        mailbox = connection.execute(
+            """
+            SELECT * FROM users
+            WHERE id = ? AND deletion_requested_at IS NULL
+              AND (owner_user_id = ? OR id = ?)
+            """,
+            (mailbox_id, owner_id, owner_id),
+        ).fetchone()
+    if not mailbox:
+        return error_response("That mailbox is not part of this account.", 404)
+    session["user_id"] = mailbox["id"]
+    session["account_user_id"] = owner_id
+    return jsonify({"user": public_user(mailbox)})
 
 
 @app.patch("/api/auth/profile")
@@ -3036,12 +3255,25 @@ def update_message(message_id: str):
     fields = {key: data[key] for key in ("folder", "isRead", "isStarred") if key in data}
     assignments = []
     values: list[Any] = []
+    folder_name = fields.get("folder")
+    if folder_name is not None:
+        if not isinstance(folder_name, str) or not folder_name.strip():
+            return error_response("Choose a valid destination folder.", 400)
+        folder_name = folder_name.strip()
+        if folder_name not in {"inbox", "sent", "drafts", "spam"}:
+            with db_connection() as connection:
+                exists = connection.execute(
+                    "SELECT 1 FROM folders WHERE user_id = ? AND name = ?",
+                    (user["id"], folder_name),
+                ).fetchone()
+            if not exists:
+                return error_response("That folder does not exist in this mailbox.", 400)
     for key, value in fields.items():
         column = {"isRead": "is_read", "isStarred": "is_starred"}.get(key, key)
         if column == "folder" and not isinstance(value, str):
             return error_response("Invalid message update.", 400)
         assignments.append(f"{column} = ?")
-        values.append(int(value) if column != "folder" else value)
+        values.append(int(value) if column != "folder" else folder_name)
     if not assignments:
         return error_response("Invalid message update.", 400)
     values.extend([message_id, user["id"]])

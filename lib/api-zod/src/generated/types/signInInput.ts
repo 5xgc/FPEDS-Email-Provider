@@ -19,4 +19,5 @@ export interface SignInInput {
   captchaToken: string;
   /** @pattern ^\d{1,3}$ */
   captchaAnswer: string;
+  adminOnly?: boolean;
 }

@@ -43,6 +43,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 - Focused access-key sign-in and generated-key account creation
 - Mailbox views for inbox, sent, drafts, spam, search, starring, and message reading
+- One original access key can own multiple separately selectable mailbox addresses; each mailbox keeps its own messages and folders
 - Compose/send through the Brevo transactional email API
 - Incoming mail through the Mailgun inbound route webhook
 - Groq-powered spam scoring with blocked-message notifications
@@ -56,6 +57,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 - Store `MORALTOWN_ADMIN_ACCESS_KEY` in Replit Secrets or the deployment provider's secret manager. Do not store credentials in source files, a `bye` directory, or an encrypted file inside the repository.
 - Mailbox content is encrypted at rest using the persistent `SESSION_SECRET`; changing that secret without first migrating stored ciphertext makes existing encrypted fields unreadable.
 - The admin access key creates a dedicated operations session without a personal mailbox. Admin and co-founder roles can manage operating controls; only the admin can change roles and bypass site lockdown.
+- During lockdown, the sign-in screen accepts only the configured admin access key; regular account keys cannot enter the site.
 - CAPTCHA challenges and request limits are application-level protections. They do not replace a CDN/WAF or provider-side mitigation for large distributed denial-of-service attacks.
 - The Check page lists API routes and safe service readiness indicators only; never add credential values to its response.
 - The mailbox remains blocked when encryption, send, or receive checks are not ready. Do not remove that readiness gate to make an unconfigured mailbox appear operational.
@@ -68,6 +70,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - `SESSION_SECRET`, mail-provider credentials, webhook secrets, and `GROQ_API_KEY` are environment secrets; do not put them in source control.
 - Each account's mailbox is derived server-side as `<username>@FPEDS_MAIL_DOMAIN`.
+- Additional mailboxes belong to the original access-key account and are listed after signing in with that key; mailbox contents and folders remain isolated per address.
 - Mailgun posts `application/x-www-form-urlencoded` fields, including `sender`, `recipient`, `subject`, `body-plain`, and a signed webhook token.
 - The inbound webhook only accepts recipients at `FPEDS_MAIL_DOMAIN` and silently ignores unknown usernames.
 - Render's SQLite path must be on a persistent disk if mailbox data should survive deploys or restarts.

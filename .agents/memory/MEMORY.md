@@ -4,3 +4,4 @@
 - [MoralTown entrypoint and theme](moraltown-entrypoint-theme.md) — keep `/` on signup, use red/black, and do not restore the marketing landing page.
 - [OpenAPI email constraints](openapi-email-constraints.md) — use a regex pattern instead of `format: email` with the current generated Zod setup.
 - [MoralTown security boundaries](moraltown-security-boundaries.md) — distinguish app-level rate limits from edge DDoS protection; only admins bypass lockdown.
+- [MoralTown mailbox accounts](moraltown-mailbox-accounts.md) — additional addresses are separate mailboxes owned by one original access key.
