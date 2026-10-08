@@ -26,11 +26,25 @@ export interface SignUpInput {
   purchaseToken?: string;
   /** @maxLength 128 */
   claimToken?: string;
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  captchaToken: string;
+  /** @pattern ^\d{1,3}$ */
+  captchaAnswer: string;
 }
 
 export interface AccessCodeCheckInput {
   /** @maxLength 100 */
   accessCode: string;
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  captchaToken: string;
+  /** @pattern ^\d{1,3}$ */
+  captchaAnswer: string;
 }
 
 export interface AccessCodeCheckResult {
@@ -103,7 +117,27 @@ export interface SignInInput {
      * @maxLength 50
      */
   accessKey: string;
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  captchaToken: string;
+  /** @pattern ^\d{1,3}$ */
+  captchaAnswer: string;
 }
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  user: 'user',
+  soldier: 'soldier',
+  moraltown: 'moraltown',
+  admin: 'admin',
+  co_founder: 'co_founder',
+  og: 'og',
+  fed: 'fed',
+} as const;
 
 export interface User {
   id: string;
@@ -111,6 +145,7 @@ export interface User {
   email: string;
   createdAt: string;
   emailChangesRemaining: number;
+  role: UserRole;
 }
 
 export interface AuthSession {
@@ -133,6 +168,162 @@ export interface RotatedAccessKey {
      */
   accessKey: string;
   rotatedAt: string;
+}
+
+export interface SecurityChallenge {
+  token: string;
+  question: string;
+  expiresAt: number;
+}
+
+export interface SiteAnnouncement {
+  /** @maxLength 500 */
+  message: string;
+  updatedAt: string;
+}
+
+export interface PublicSiteStatus {
+  lockdown: boolean;
+  lockdownMessage: string;
+  announcement: SiteAnnouncement | null;
+}
+
+export interface SecurityService {
+  id: string;
+  name: string;
+  active: boolean;
+  detail: string;
+}
+
+export interface SecurityRoute {
+  path: string;
+  methods: string[];
+  active: boolean;
+}
+
+export interface SecurityCheck {
+  mailboxReady: boolean;
+  lockdown: boolean;
+  lockdownMessage: string;
+  apiPaused: boolean;
+  announcement: SiteAnnouncement | null;
+  warnings: string[];
+  services: SecurityService[];
+  routes: SecurityRoute[];
+}
+
+export interface AdminSeriesPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminAuditEvent {
+  action: string;
+  actor: string;
+  createdAt: string;
+}
+
+export type AdminOverviewTotals = {
+  users: number;
+  sentToday: number;
+  receivedToday: number;
+};
+
+export type AdminOverviewSeries = {
+  accounts: AdminSeriesPoint[];
+  messages: AdminSeriesPoint[];
+};
+
+export interface OperatingControls {
+  lockdown: boolean;
+  lockdownMessage: string;
+  apiPaused: boolean;
+  sendingEnabled: boolean;
+  receivingEnabled: boolean;
+}
+
+export interface AdminOverview {
+  totals: AdminOverviewTotals;
+  series: AdminOverviewSeries;
+  controls: OperatingControls;
+  announcement: SiteAnnouncement | null;
+  audit: AdminAuditEvent[];
+}
+
+export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];
+
+
+export const AdminUserRole = {
+  user: 'user',
+  soldier: 'soldier',
+  moraltown: 'moraltown',
+  admin: 'admin',
+  co_founder: 'co_founder',
+  og: 'og',
+  fed: 'fed',
+} as const;
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  role: AdminUserRole;
+  createdAt: string;
+}
+
+export interface AdminUserDirectory {
+  users: AdminUser[];
+}
+
+export type AdminUserRoleUpdateRole = typeof AdminUserRoleUpdateRole[keyof typeof AdminUserRoleUpdateRole];
+
+
+export const AdminUserRoleUpdateRole = {
+  user: 'user',
+  soldier: 'soldier',
+  moraltown: 'moraltown',
+  admin: 'admin',
+  co_founder: 'co_founder',
+  og: 'og',
+  fed: 'fed',
+} as const;
+
+export interface AdminUserRoleUpdate {
+  role: AdminUserRoleUpdateRole;
+}
+
+export interface AdminUserUpdateResult {
+  user: AdminUser;
+}
+
+export type AdminControlInputKey = typeof AdminControlInputKey[keyof typeof AdminControlInputKey];
+
+
+export const AdminControlInputKey = {
+  lockdown: 'lockdown',
+  apiPaused: 'apiPaused',
+  sendingEnabled: 'sendingEnabled',
+  receivingEnabled: 'receivingEnabled',
+} as const;
+
+export interface AdminControlInput {
+  key: AdminControlInputKey;
+  enabled: boolean;
+  /** @maxLength 500 */
+  message?: string;
+}
+
+export interface AdminControlResult {
+  controls: OperatingControls;
+}
+
+export interface AdminAnnouncementInput {
+  /** @maxLength 500 */
+  message: string;
+}
+
+export interface AdminAnnouncementResult {
+  announcement: SiteAnnouncement | null;
 }
 
 export interface ProfileUpdate {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, Star, Tag, X } from 'lucide-react';
+import { Activity, Archive, FileText, Inbox, LogOut, Menu, PenLine, Plus, Settings, Shield, ShieldCheck, Star, Tag, X } from 'lucide-react';
 import { useGetCurrentUser, useGetMailboxSummary, useListFolders, useSignOut } from '@workspace/api-client-react';
 import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,11 @@ export function MailShell({ children }: { children: React.ReactNode }) {
   const summary = summaryQuery.data;
   const folders = foldersQuery.data ?? [];
   const username = userQuery.data?.username ?? 'name';
+  const role = String((userQuery.data as unknown as { role?: string } | undefined)?.role ?? 'user');
+  const canSeeAdmin = role === 'admin' || role === 'co_founder';
   const sendingAddress = `${username}@fpeds.2bd.net`;
   const receivingAddress = userQuery.data?.email ?? `${username}@fpdf.2bd.net`;
+  const [serviceStatus, setServiceStatus] = useState<{ mailboxReady: boolean; warnings: string[]; announcement: { message: string; updatedAt: string } | null } | null>(null);
   const close = () => setOpen(false);
   const logout = () => signOut.mutate(undefined, { onSuccess: () => { queryClient.clear(); setLocation('/auth?mode=signup'); } });
   const logoutRef = useRef(logout);
@@ -32,6 +35,22 @@ export function MailShell({ children }: { children: React.ReactNode }) {
     const refreshPreference = () => setAutoSignOut(readPreference('autoSignOut'));
     window.addEventListener(PREFERENCES_CHANGED_EVENT, refreshPreference);
     return () => window.removeEventListener(PREFERENCES_CHANGED_EVENT, refreshPreference);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/security/check', { credentials: 'same-origin', cache: 'no-store' });
+        if (!response.ok) return;
+        const next = await response.json();
+        if (active) setServiceStatus(next);
+      } catch {
+        if (active) setServiceStatus({ mailboxReady: false, warnings: ['Security status could not be reached.'], announcement: null });
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
   useEffect(() => {
     if (!autoSignOut) return;
@@ -54,6 +73,7 @@ export function MailShell({ children }: { children: React.ReactNode }) {
     { href: '/sent', label: 'Sent', icon: Archive, count: summary?.sent },
     { href: '/drafts', label: 'Drafts', icon: FileText, count: summary?.drafts },
     { href: '/spam', label: 'Spam', icon: Shield, count: summary?.spam },
+    { href: '/check', label: 'Check', icon: ShieldCheck },
   ];
   const selectedFolder = location.split('/')[1] === 'folder'
     ? decodeURIComponent(location.split('/')[2]?.split('?')[0] ?? '')
@@ -72,7 +92,9 @@ export function MailShell({ children }: { children: React.ReactNode }) {
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary" data-testid="text-avatar">{(userQuery.data?.username?.slice(0, 2) ?? 'FP').toUpperCase()}</div>
           <button onClick={() => setOpen(!open)} className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden" aria-label="Open workspace menu" aria-expanded={open} data-testid="button-toggle-menu"><Menu className="h-4 w-4" /></button>
         </div>
-          {open && <div className="absolute right-4 top-12 z-50 w-48 rounded-xl border border-white/10 bg-[#121212]/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
+          {open && <div className="absolute right-4 top-12 z-50 w-56 rounded-xl border border-white/10 bg-[#121212]/95 p-2 shadow-2xl backdrop-blur-xl md:hidden">
+          <Link href="/check" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"><ShieldCheck className="h-4 w-4" /> System check</Link>
+          {canSeeAdmin && <Link href="/admin" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"><Activity className="h-4 w-4" /> Admin</Link>}
           <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"><Settings className="h-4 w-4" /> Settings</Link>
           <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground"><LogOut className="h-4 w-4" /> Sign out</Button>
         </div>}
@@ -93,12 +115,24 @@ export function MailShell({ children }: { children: React.ReactNode }) {
             {folders.map(folder => <Link key={folder.id} href={`/folder/${encodeURIComponent(folder.name)}`} onClick={close} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${selectedFolder === folder.name ? 'bg-accent font-semibold text-accent-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`} data-testid={`link-custom-folder-${folder.id}`}><span className="flex items-center gap-3"><Tag className="h-4 w-4" />{folder.name}</span><span className="font-mono text-[10px]">{folder.count}</span></Link>)}
           </nav>
           <div className="absolute bottom-5 left-5 right-5 space-y-1">
+            {canSeeAdmin && <Link href="/admin" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-admin"><Activity className="h-4 w-4" /> Admin console</Link>}
             <Link href="/settings" onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground" data-testid="link-settings"><Settings className="h-4 w-4" /> Settings</Link>
             <Button variant="ghost" onClick={logout} disabled={signOut.isPending} className="w-full justify-start px-3 text-sm text-muted-foreground hover:text-foreground" data-testid="button-signout"><LogOut className="h-4 w-4" /> {signOut.isPending ? 'Closing session…' : 'Sign out'}</Button>
           </div>
         </aside>
          {open && <button className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={close} aria-label="Close navigation" data-testid="button-overlay" />}
-           <main className="scroll-stage w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">{children}</main>
+            <main className="scroll-stage w-full min-w-0 flex-1 overflow-x-hidden pb-20 md:pb-0">
+              {serviceStatus?.announcement && <div className="mx-3 mt-3 rounded-xl border border-white/10 bg-white/[.035] px-4 py-3 text-sm animate-enter sm:mx-6 md:mx-8">
+                <p className="font-mono text-[9px] uppercase tracking-[.16em] text-primary">MoralTown announcement</p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-foreground/85">{serviceStatus.announcement.message}</p>
+              </div>}
+              {serviceStatus && !serviceStatus.mailboxReady && <div role="alert" className="mx-3 mt-3 flex items-start gap-3 rounded-xl border border-primary/35 bg-primary/[.09] px-4 py-3 animate-enter sm:mx-6 md:mx-8">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase tracking-[.08em] text-primary">DO NOT USE THE MAILBOX</p><p className="mt-1 text-xs leading-5 text-foreground/70">{serviceStatus.warnings.join(' ')}</p></div>
+                <Link href="/check" className="shrink-0 text-xs font-semibold text-primary underline underline-offset-4">Check</Link>
+              </div>}
+              {children}
+            </main>
       </div>
         <nav className="workspace-mobile-nav glass fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-x-0 border-b-0 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl md:hidden" aria-label="Mobile mailbox">
          {[

@@ -108,6 +108,7 @@ RATE_LIMITS: OrderedDict[tuple[str, str], tuple[float, int]] = OrderedDict()
 RATE_LIMIT_LOCK = threading.Lock()
 RATE_LIMIT_MAX_CLIENTS = 20_000
 RATE_LIMIT_RULES = {
+    "site": (1200, 60),
     "api": (240, 60),
     "auth": (12, 60),
     "captcha": (30, 60),
@@ -116,6 +117,8 @@ RATE_LIMIT_RULES = {
 
 FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "").strip()
 ADMIN_ACCESS_KEY = os.environ.get("MORALTOWN_ADMIN_ACCESS_KEY", "").strip()
+if ADMIN_ACCESS_KEY and not re.fullmatch(r"\d{50}", ADMIN_ACCESS_KEY):
+    raise RuntimeError("MORALTOWN_ADMIN_ACCESS_KEY must contain exactly 50 digits.")
 PAYMENT_EXPIRY_SECONDS = 60 * 60 * 2
 PAYMENT_CHECK_INTERVAL_SECONDS = 30
 PAYMENT_MONITOR_INTERVAL_SECONDS = 5
@@ -481,7 +484,7 @@ def admin_account() -> dict[str, Any]:
         "id": "system-admin",
         "username": "MoralTown Admin",
         "email": "",
-        "created_at": "system",
+        "created_at": utc_now(),
         "email_changes_remaining": 0,
         "role": "admin",
     }
@@ -521,6 +524,24 @@ def control_state() -> dict[str, Any]:
         "sendingEnabled": settings.get("sending_enabled", "1") == "1",
         "receivingEnabled": settings.get("receiving_enabled", "1") == "1",
     }
+
+
+def mailbox_operational(controls: dict[str, Any] | None = None) -> bool:
+    controls = controls or control_state()
+    outbound_active = bool(
+        os.environ.get("BREVO_API_KEY", "").strip()
+        or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
+    ) and bool(BREVO_SENDER_DOMAIN)
+    inbound_active = bool(os.environ.get("MAILGUN_SIGNING_KEY", "").strip())
+    return bool(
+        len(SESSION_SECRET) >= 32
+        and outbound_active
+        and inbound_active
+        and controls["sendingEnabled"]
+        and controls["receivingEnabled"]
+        and not controls["apiPaused"]
+        and not controls["lockdown"]
+    )
 
 
 def write_system_setting(key: str, value: str) -> None:
@@ -590,7 +611,7 @@ def public_message(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def current_user() -> sqlite3.Row | None:
+def current_user() -> sqlite3.Row | dict[str, Any] | None:
     if session.get("admin_authenticated") and valid_access_key(ADMIN_ACCESS_KEY):
         return admin_account()  # type: ignore[return-value]
     user_id = session.get("user_id")
@@ -603,7 +624,7 @@ def current_user() -> sqlite3.Row | None:
         ).fetchone()
 
 
-def require_user() -> sqlite3.Row:
+def require_user() -> sqlite3.Row | dict[str, Any]:
     user = current_user()
     if not user:
         raise PermissionError("Sign in required")
@@ -612,6 +633,11 @@ def require_user() -> sqlite3.Row:
 
 def error_response(message: str, status: int):
     return jsonify({"error": message}), status
+
+
+@app.errorhandler(413)
+def handle_request_too_large(_error):
+    return error_response("Request body is too large.", 413)
 
 
 def html_to_text(value: str) -> str:
@@ -1008,6 +1034,8 @@ def handle_mailgun_inbound(payload: dict[str, Any]) -> tuple[str, str, str, str]
 
 
 def handle_send():
+    if session.get("admin_authenticated"):
+        return error_response("The operations account does not have a personal mailbox.", 403)
     try:
         user = require_user()
     except PermissionError as exc:
@@ -1020,6 +1048,8 @@ def handle_send():
         return error_response("Recipient must be a valid email address.", 400)
     if not subject or len(subject) > 200 or not body or len(body) > 100_000:
         return error_response("Subject and message are required.", 400)
+    if not control_state()["sendingEnabled"]:
+        return error_response("Outbound mail is paused by an administrator.", 503)
     try:
         send_brevo_message(user, recipient, subject, body)
     except MailConfigurationError as exc:
@@ -1031,10 +1061,11 @@ def handle_send():
         "id": new_id(),
         "user_id": user["id"],
         "folder": "sent",
-        "sender": user["email"],
-        "recipient": recipient,
-        "subject": subject,
-        "body": body,
+        "sender": encrypt_mailbox_text(user["email"]),
+        "recipient": encrypt_mailbox_text(recipient),
+        "subject": encrypt_mailbox_text(subject),
+        "body": encrypt_mailbox_text(body),
+        "content_encrypted": 1,
         "received_at": utc_now(),
         "is_read": 1,
         "is_starred": 0,
@@ -1045,10 +1076,10 @@ def handle_send():
         connection.execute(
             """
             INSERT INTO messages
-              (id, user_id, folder, sender, recipient, subject, body, received_at,
-               is_read, is_starred, spam_score, blocked)
+              (id, user_id, folder, sender, recipient, subject, body, content_encrypted,
+               received_at, is_read, is_starred, spam_score, blocked)
             VALUES (:id, :user_id, :folder, :sender, :recipient, :subject, :body,
-                    :received_at, :is_read, :is_starred, :spam_score, :blocked)
+                    :content_encrypted, :received_at, :is_read, :is_starred, :spam_score, :blocked)
             """,
             message,
         )
@@ -1078,7 +1109,9 @@ def rate_limit_response(bucket: str, maximum: int, seconds: int):
                 RATE_LIMITS.popitem(last=False)
     if allowed:
         return None
-    response = error_response("Too many requests. Please wait and try again.", 429)
+    response = app.make_response(
+        error_response("Too many requests. Please wait and try again.", 429)
+    )
     response.headers["Retry-After"] = str(retry_after)
     return response
 
@@ -1158,6 +1191,16 @@ def security_status() -> dict[str, Any]:
     inbound_active = bool(os.environ.get("MAILGUN_SIGNING_KEY", "").strip())
     services = [
         {
+            "id": "admin-access",
+            "name": "Admin account",
+            "active": bool(ADMIN_ACCESS_KEY),
+            "detail": (
+                "Admin sign-in is provisioned through a server secret; the access key is never shown."
+                if ADMIN_ACCESS_KEY
+                else "Admin sign-in is not provisioned. Set MORALTOWN_ADMIN_ACCESS_KEY in Replit Secrets."
+            ),
+        },
+        {
             "id": "session-encryption",
             "name": "Credential and mailbox encryption",
             "active": session_crypto_active,
@@ -1197,7 +1240,7 @@ def security_status() -> dict[str, Any]:
             "id": "request-throttle",
             "name": "Application request throttling",
             "active": True,
-            "detail": "Per-process limits cover API, authentication, challenge, and send routes.",
+            "detail": "Per-process limits cover all page and API requests, with tighter authentication and send limits.",
         },
         {
             "id": "api-controls",
@@ -1206,15 +1249,7 @@ def security_status() -> dict[str, Any]:
             "detail": "Lockdown, API pause, send pause, and receive pause are enforced by Flask.",
         },
     ]
-    ready = (
-        session_crypto_active
-        and outbound_active
-        and inbound_active
-        and controls["sendingEnabled"]
-        and controls["receivingEnabled"]
-        and not controls["apiPaused"]
-        and not controls["lockdown"]
-    )
+    ready = mailbox_operational(controls)
     warnings = []
     if not session_crypto_active:
         warnings.append("Encryption is unavailable. Do not use the mailbox until SESSION_SECRET is configured.")
@@ -1265,6 +1300,9 @@ def protect_request():
         "/webhook/inbound",
         "/api/webhook/inbound",
     }
+    site_limited = rate_limit_response("site", *RATE_LIMIT_RULES["site"])
+    if site_limited:
+        return site_limited
     if path.startswith("/api/"):
         for bucket, maximum, seconds in (
             ("api", *RATE_LIMIT_RULES["api"]),
@@ -1337,6 +1375,20 @@ def protect_request():
             "/api/healthz",
         } and not (path.startswith("/api/admin/") and admin_access):
             return error_response("The website is shut down by an administrator.", 503)
+        mailbox_routes = (
+            path == "/api/send"
+            or path == "/api/messages"
+            or path.startswith("/api/messages/")
+            or path.startswith("/api/mailbox/")
+            or path.startswith("/api/folders")
+            or path.startswith("/api/notifications")
+            or path.startswith("/api/subscriptions")
+        )
+        if mailbox_routes and not mailbox_operational(controls):
+            return error_response(
+                "DO NOT USE THE MAILBOX. Required encryption and mail-provider checks are not active.",
+                503,
+            )
     return None
 
 

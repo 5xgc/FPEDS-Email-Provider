@@ -23,4 +23,11 @@ export interface SignUpInput {
   purchaseToken?: string;
   /** @maxLength 128 */
   claimToken?: string;
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  captchaToken: string;
+  /** @pattern ^\d{1,3}$ */
+  captchaAnswer: string;
 }

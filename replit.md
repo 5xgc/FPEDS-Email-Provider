@@ -14,6 +14,8 @@ FPEDS is a self-hosted email workspace with Brevo API sending, Mailgun inbound r
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `SESSION_SECRET`, `BREVO_API_KEY`, `BREVO_SENDER_DOMAIN`, and `MAILGUN_SIGNING_KEY`
+- Optional admin env: `MORALTOWN_ADMIN_ACCESS_KEY` — exactly 50 random digits; admin sign-in is disabled until configured
+- Optional env: `MORALTOWN_ACCESS_CODE` — enables free account creation by access code; no default code is accepted
 - Optional env: `FPEDS_MAIL_DOMAIN` — receiving/mailbox domain; defaults to `fpdf.2bd.net`
 - Optional env: `SQLITE_PATH` — SQLite file path; set this to a Render persistent disk path
 - Optional env: `MAILGUN_DOMAIN` — Mailgun receiving domain; defaults to `fpdf.2bd.net`
@@ -47,6 +49,16 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 - Custom folders, subscriptions, notification center, and profile settings
 - Annual limit of two username/email address changes
 - Encrypted sensitive mailbox fields with no message-body logging
+- Server-side lockdown, mail/API pause controls, announcements, role management, audit events, and operational analytics
+
+## Security and administration
+
+- Store `MORALTOWN_ADMIN_ACCESS_KEY` in Replit Secrets or the deployment provider's secret manager. Do not store credentials in source files, a `bye` directory, or an encrypted file inside the repository.
+- Mailbox content is encrypted at rest using the persistent `SESSION_SECRET`; changing that secret without first migrating stored ciphertext makes existing encrypted fields unreadable.
+- The admin access key creates a dedicated operations session without a personal mailbox. Admin and co-founder roles can manage operating controls; only the admin can change roles and bypass site lockdown.
+- CAPTCHA challenges and request limits are application-level protections. They do not replace a CDN/WAF or provider-side mitigation for large distributed denial-of-service attacks.
+- The Check page lists API routes and safe service readiness indicators only; never add credential values to its response.
+- The mailbox remains blocked when encryption, send, or receive checks are not ready. Do not remove that readiness gate to make an unconfigured mailbox appear operational.
 
 ## User preferences
 
@@ -72,6 +84,7 @@ and start commands, a `/api/healthz` health check, and a 1 GB persistent disk mo
 Set these values in the Render service's Environment page:
 
 - `SESSION_SECRET`: a long random secret used to sign login sessions.
+- `MORALTOWN_ADMIN_ACCESS_KEY` (optional): exactly 50 random digits used only for the dedicated admin sign-in. Store it as a Render environment secret, not in a file.
 - `FPEDS_MAIL_DOMAIN`: the domain users will receive mail at, `fpdf.2bd.net`.
 - `SQLITE_PATH`: `/var/data/fpeds.sqlite3` when using the Render persistent disk.
 - `BREVO_API_KEY`: a Brevo API key with transactional sending enabled.

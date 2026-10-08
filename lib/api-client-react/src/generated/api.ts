@@ -23,6 +23,14 @@ import type {
   AccessCodeCheckInput,
   AccessCodeCheckResult,
   AccessKey,
+  AdminAnnouncementInput,
+  AdminAnnouncementResult,
+  AdminControlInput,
+  AdminControlResult,
+  AdminOverview,
+  AdminUserDirectory,
+  AdminUserRoleUpdate,
+  AdminUserUpdateResult,
   AuthSession,
   Folder,
   FolderInput,
@@ -37,7 +45,10 @@ import type {
   PaymentOrder,
   PaymentOrderInput,
   ProfileUpdate,
+  PublicSiteStatus,
   RotatedAccessKey,
+  SecurityChallenge,
+  SecurityCheck,
   SendMessageInput,
   SignInInput,
   SignUpInput,
@@ -151,6 +162,605 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getCreateSecurityChallengeUrl = () => {
+
+
+
+
+  return `/api/security/captcha`
+}
+
+/**
+ * @summary Issue a short-lived human-check challenge
+ */
+export const createSecurityChallenge = async ( options?: Parameters<typeof customFetch>[1]): Promise<SecurityChallenge> => {
+
+  return customFetch<SecurityChallenge>(getCreateSecurityChallengeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateSecurityChallengeQueryKey = () => {
+    return [
+    `/api/security/captcha`
+    ] as const;
+    }
+
+
+export const getCreateSecurityChallengeQueryOptions = <TData = Awaited<ReturnType<typeof createSecurityChallenge>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof createSecurityChallenge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCreateSecurityChallengeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof createSecurityChallenge>>> = ({ signal }) => createSecurityChallenge({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof createSecurityChallenge>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CreateSecurityChallengeQueryResult = NonNullable<Awaited<ReturnType<typeof createSecurityChallenge>>>
+export type CreateSecurityChallengeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Issue a short-lived human-check challenge
+ */
+
+export function useCreateSecurityChallenge<TData = Awaited<ReturnType<typeof createSecurityChallenge>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof createSecurityChallenge>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCreateSecurityChallengeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSiteStatusUrl = () => {
+
+
+
+
+  return `/api/site/status`
+}
+
+/**
+ * @summary Read the public lockdown and announcement state
+ */
+export const getSiteStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<PublicSiteStatus> => {
+
+  return customFetch<PublicSiteStatus>(getGetSiteStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSiteStatusQueryKey = () => {
+    return [
+    `/api/site/status`
+    ] as const;
+    }
+
+
+export const getGetSiteStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSiteStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSiteStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSiteStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSiteStatus>>> = ({ signal }) => getSiteStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSiteStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSiteStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSiteStatus>>>
+export type GetSiteStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Read the public lockdown and announcement state
+ */
+
+export function useGetSiteStatus<TData = Awaited<ReturnType<typeof getSiteStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSiteStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSiteStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSecurityCheckUrl = () => {
+
+
+
+
+  return `/api/security/check`
+}
+
+/**
+ * @summary Read authenticated service readiness and API route status
+ */
+export const getSecurityCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<SecurityCheck> => {
+
+  return customFetch<SecurityCheck>(getGetSecurityCheckUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSecurityCheckQueryKey = () => {
+    return [
+    `/api/security/check`
+    ] as const;
+    }
+
+
+export const getGetSecurityCheckQueryOptions = <TData = Awaited<ReturnType<typeof getSecurityCheck>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSecurityCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSecurityCheckQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSecurityCheck>>> = ({ signal }) => getSecurityCheck({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSecurityCheck>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSecurityCheckQueryResult = NonNullable<Awaited<ReturnType<typeof getSecurityCheck>>>
+export type GetSecurityCheckQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read authenticated service readiness and API route status
+ */
+
+export function useGetSecurityCheck<TData = Awaited<ReturnType<typeof getSecurityCheck>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSecurityCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSecurityCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminOverviewUrl = () => {
+
+
+
+
+  return `/api/admin/overview`
+}
+
+/**
+ * @summary Read aggregate privacy-safe operations analytics
+ */
+export const getAdminOverview = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminOverview> => {
+
+  return customFetch<AdminOverview>(getGetAdminOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminOverviewQueryKey = () => {
+    return [
+    `/api/admin/overview`
+    ] as const;
+    }
+
+
+export const getGetAdminOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getAdminOverview>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminOverview>>> = ({ signal }) => getAdminOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminOverview>>>
+export type GetAdminOverviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read aggregate privacy-safe operations analytics
+ */
+
+export function useGetAdminOverview<TData = Awaited<ReturnType<typeof getAdminOverview>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListAdminUsersUrl = () => {
+
+
+
+
+  return `/api/admin/users`
+}
+
+/**
+ * @summary List account identities and roles for authorized operators
+ */
+export const listAdminUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminUserDirectory> => {
+
+  return customFetch<AdminUserDirectory>(getListAdminUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminUsersQueryKey = () => {
+    return [
+    `/api/admin/users`
+    ] as const;
+    }
+
+
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUsers>>> = ({ signal }) => listAdminUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
+export type ListAdminUsersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List account identities and roles for authorized operators
+ */
+
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateAdminUserRoleUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}`
+}
+
+/**
+ * @summary Change an account role
+ */
+export const updateAdminUserRole = async (userId: string,
+    adminUserRoleUpdate: AdminUserRoleUpdate, options?: Parameters<typeof customFetch>[1]): Promise<AdminUserUpdateResult> => {
+
+  return customFetch<AdminUserUpdateResult>(getUpdateAdminUserRoleUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminUserRoleUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminUserRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{userId: string;data: BodyType<AdminUserRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{userId: string;data: BodyType<AdminUserRoleUpdate>}, TContext> => {
+
+const mutationKey = ['updateAdminUserRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminUserRole>>, {userId: string;data: BodyType<AdminUserRoleUpdate>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateAdminUserRole(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminUserRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminUserRole>>>
+    export type UpdateAdminUserRoleMutationBody = BodyType<AdminUserRoleUpdate>
+    export type UpdateAdminUserRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Change an account role
+ */
+export const useUpdateAdminUserRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUserRole>>, TError,{userId: string;data: BodyType<AdminUserRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminUserRole>>,
+        TError,
+        {userId: string;data: BodyType<AdminUserRoleUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminUserRoleMutationOptions(options));
+    }
+
+export const getUpdateAdminControlUrl = () => {
+
+
+
+
+  return `/api/admin/control`
+}
+
+/**
+ * @summary Change lockdown, API, sending, or receiving state
+ */
+export const updateAdminControl = async (adminControlInput: AdminControlInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminControlResult> => {
+
+  return customFetch<AdminControlResult>(getUpdateAdminControlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminControlInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminControlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminControl>>, TError,{data: BodyType<AdminControlInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminControl>>, TError,{data: BodyType<AdminControlInput>}, TContext> => {
+
+const mutationKey = ['updateAdminControl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminControl>>, {data: BodyType<AdminControlInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminControl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminControlMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminControl>>>
+    export type UpdateAdminControlMutationBody = BodyType<AdminControlInput>
+    export type UpdateAdminControlMutationError = ErrorType<void>
+
+    /**
+ * @summary Change lockdown, API, sending, or receiving state
+ */
+export const useUpdateAdminControl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminControl>>, TError,{data: BodyType<AdminControlInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminControl>>,
+        TError,
+        {data: BodyType<AdminControlInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminControlMutationOptions(options));
+    }
+
+export const getUpdateAdminAnnouncementUrl = () => {
+
+
+
+
+  return `/api/admin/announcement`
+}
+
+/**
+ * @summary Publish or clear a public service announcement
+ */
+export const updateAdminAnnouncement = async (adminAnnouncementInput: AdminAnnouncementInput, options?: Parameters<typeof customFetch>[1]): Promise<AdminAnnouncementResult> => {
+
+  return customFetch<AdminAnnouncementResult>(getUpdateAdminAnnouncementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminAnnouncementInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminAnnouncementMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminAnnouncement>>, TError,{data: BodyType<AdminAnnouncementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminAnnouncement>>, TError,{data: BodyType<AdminAnnouncementInput>}, TContext> => {
+
+const mutationKey = ['updateAdminAnnouncement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminAnnouncement>>, {data: BodyType<AdminAnnouncementInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateAdminAnnouncement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminAnnouncementMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminAnnouncement>>>
+    export type UpdateAdminAnnouncementMutationBody = BodyType<AdminAnnouncementInput>
+    export type UpdateAdminAnnouncementMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish or clear a public service announcement
+ */
+export const useUpdateAdminAnnouncement = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminAnnouncement>>, TError,{data: BodyType<AdminAnnouncementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminAnnouncement>>,
+        TError,
+        {data: BodyType<AdminAnnouncementInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminAnnouncementMutationOptions(options));
+    }
 
 export const getSignUpUrl = () => {
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 import unittest
 from decimal import Decimal
@@ -60,6 +61,14 @@ class PaymentClaimFlowTests(unittest.TestCase):
                 ),
             )
 
+    def captcha_payload(self):
+        challenge = self.client.get("/api/security/captcha").get_json()
+        left, right = re.findall(r"\d+", challenge["question"])
+        return {
+            "captchaToken": challenge["token"],
+            "captchaAnswer": str(int(left) + int(right)),
+        }
+
     def test_payment_is_checked_automatically_and_claim_can_only_create_one_paid_account(self):
         with patch.object(service, "spot_usd", return_value=Decimal("60000")), patch.object(
             service, "amount_units_for_usd", return_value=1500
@@ -116,6 +125,7 @@ class PaymentClaimFlowTests(unittest.TestCase):
                 "accessKey": "1" * 50,
                 "username": "paidbuyer",
                 "claimToken": claim_token,
+                **self.captcha_payload(),
             },
         )
         self.assertEqual(first_signup.status_code, 201)
@@ -135,6 +145,7 @@ class PaymentClaimFlowTests(unittest.TestCase):
                 "accessKey": "2" * 50,
                 "username": "anotherpaid",
                 "claimToken": second_token,
+                **self.captcha_payload(),
             },
         )
         self.assertEqual(blocked.status_code, 409)
@@ -145,7 +156,8 @@ class PaymentClaimFlowTests(unittest.TestCase):
                 json={
                     "accessKey": "2" * 50,
                     "username": "anotherpaid",
-                    "accessCode": "moraltown1919",
+                    "accessCode": "configured-custom-code",
+                    **self.captcha_payload(),
                 },
             )
         self.assertEqual(access_code_signup.status_code, 201)

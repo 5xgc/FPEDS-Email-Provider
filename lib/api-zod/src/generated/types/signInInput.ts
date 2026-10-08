@@ -12,4 +12,11 @@ export interface SignInInput {
      * @maxLength 50
      */
   accessKey: string;
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  captchaToken: string;
+  /** @pattern ^\d{1,3}$ */
+  captchaAnswer: string;
 }

@@ -5,13 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { UserRole } from './userRole';
+import type { AdminUserRole } from './adminUserRole';
 
-export interface User {
+export interface AdminUser {
   id: string;
   username: string;
   email: string;
+  role: AdminUserRole;
   createdAt: Date;
-  emailChangesRemaining: number;
-  role: UserRole;
 }

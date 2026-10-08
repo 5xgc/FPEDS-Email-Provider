@@ -18,6 +18,189 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Issue a short-lived human-check challenge
+ */
+export const CreateSecurityChallengeResponse = zod.object({
+  "token": zod.string(),
+  "question": zod.string(),
+  "expiresAt": zod.number()
+})
+
+
+/**
+ * @summary Read the public lockdown and announcement state
+ */
+export const getSiteStatusResponseAnnouncementOneMessageMax = 500;
+
+
+
+export const GetSiteStatusResponse = zod.object({
+  "lockdown": zod.boolean(),
+  "lockdownMessage": zod.string(),
+  "announcement": zod.union([zod.object({
+  "message": zod.string().max(getSiteStatusResponseAnnouncementOneMessageMax),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Read authenticated service readiness and API route status
+ */
+export const getSecurityCheckResponseAnnouncementOneMessageMax = 500;
+
+
+
+export const GetSecurityCheckResponse = zod.object({
+  "mailboxReady": zod.boolean(),
+  "lockdown": zod.boolean(),
+  "lockdownMessage": zod.string(),
+  "apiPaused": zod.boolean(),
+  "announcement": zod.union([zod.object({
+  "message": zod.string().max(getSecurityCheckResponseAnnouncementOneMessageMax),
+  "updatedAt": zod.coerce.date()
+}),zod.null()]),
+  "warnings": zod.array(zod.string()),
+  "services": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean(),
+  "detail": zod.string()
+})),
+  "routes": zod.array(zod.object({
+  "path": zod.string(),
+  "methods": zod.array(zod.string()),
+  "active": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Read aggregate privacy-safe operations analytics
+ */
+export const getAdminOverviewResponseAnnouncementOneMessageMax = 500;
+
+
+
+export const GetAdminOverviewResponse = zod.object({
+  "totals": zod.object({
+  "users": zod.number(),
+  "sentToday": zod.number(),
+  "receivedToday": zod.number()
+}),
+  "series": zod.object({
+  "accounts": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "count": zod.number()
+})),
+  "messages": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "count": zod.number()
+}))
+}),
+  "controls": zod.object({
+  "lockdown": zod.boolean(),
+  "lockdownMessage": zod.string(),
+  "apiPaused": zod.boolean(),
+  "sendingEnabled": zod.boolean(),
+  "receivingEnabled": zod.boolean()
+}),
+  "announcement": zod.union([zod.object({
+  "message": zod.string().max(getAdminOverviewResponseAnnouncementOneMessageMax),
+  "updatedAt": zod.coerce.date()
+}),zod.null()]),
+  "audit": zod.array(zod.object({
+  "action": zod.string(),
+  "actor": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary List account identities and roles for authorized operators
+ */
+export const ListAdminUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed']),
+  "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Change an account role
+ */
+export const UpdateAdminUserRoleParams = zod.object({
+  "user_id": zod.coerce.string()
+})
+
+export const UpdateAdminUserRoleBody = zod.object({
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
+})
+
+export const UpdateAdminUserRoleResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed']),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Change lockdown, API, sending, or receiving state
+ */
+export const updateAdminControlBodyMessageMax = 500;
+
+
+
+export const UpdateAdminControlBody = zod.object({
+  "key": zod.enum(['lockdown', 'apiPaused', 'sendingEnabled', 'receivingEnabled']),
+  "enabled": zod.boolean(),
+  "message": zod.string().max(updateAdminControlBodyMessageMax).optional()
+})
+
+export const UpdateAdminControlResponse = zod.object({
+  "controls": zod.object({
+  "lockdown": zod.boolean(),
+  "lockdownMessage": zod.string(),
+  "apiPaused": zod.boolean(),
+  "sendingEnabled": zod.boolean(),
+  "receivingEnabled": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Publish or clear a public service announcement
+ */
+export const updateAdminAnnouncementBodyMessageMax = 500;
+
+
+
+export const UpdateAdminAnnouncementBody = zod.object({
+  "message": zod.string().max(updateAdminAnnouncementBodyMessageMax)
+})
+
+export const updateAdminAnnouncementResponseAnnouncementOneMessageMax = 500;
+
+
+
+export const UpdateAdminAnnouncementResponse = zod.object({
+  "announcement": zod.union([zod.object({
+  "message": zod.string().max(updateAdminAnnouncementResponseAnnouncementOneMessageMax),
+  "updatedAt": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
  * @summary Create a MoralTown account with a free access code or verified purchase
  */
 export const signUpBodyAccessKeyMin = 50;
@@ -31,6 +214,10 @@ export const signUpBodyPurchaseTokenMax = 256;
 
 export const signUpBodyClaimTokenMax = 128;
 
+export const signUpBodyCaptchaTokenMin = 16;
+export const signUpBodyCaptchaTokenMax = 128;
+
+export const signUpBodyCaptchaAnswerRegExp = new RegExp('^\\d{1,3}$');
 
 
 export const SignUpBody = zod.object({
@@ -38,7 +225,9 @@ export const SignUpBody = zod.object({
   "username": zod.string().min(1).max(signUpBodyUsernameMax),
   "accessCode": zod.string().max(signUpBodyAccessCodeMax).optional(),
   "purchaseToken": zod.string().max(signUpBodyPurchaseTokenMax).optional(),
-  "claimToken": zod.string().max(signUpBodyClaimTokenMax).optional()
+  "claimToken": zod.string().max(signUpBodyClaimTokenMax).optional(),
+  "captchaToken": zod.string().min(signUpBodyCaptchaTokenMin).max(signUpBodyCaptchaTokenMax),
+  "captchaAnswer": zod.string().regex(signUpBodyCaptchaAnswerRegExp)
 })
 
 export const SignUpResponse = zod.object({
@@ -47,7 +236,8 @@ export const SignUpResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date(),
-  "emailChangesRemaining": zod.number()
+  "emailChangesRemaining": zod.number(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
 }),
   "firstLogin": zod.boolean()
 })
@@ -58,10 +248,16 @@ export const SignUpResponse = zod.object({
  */
 export const checkAccessCodeBodyAccessCodeMax = 100;
 
+export const checkAccessCodeBodyCaptchaTokenMin = 16;
+export const checkAccessCodeBodyCaptchaTokenMax = 128;
+
+export const checkAccessCodeBodyCaptchaAnswerRegExp = new RegExp('^\\d{1,3}$');
 
 
 export const CheckAccessCodeBody = zod.object({
-  "accessCode": zod.string().max(checkAccessCodeBodyAccessCodeMax)
+  "accessCode": zod.string().max(checkAccessCodeBodyAccessCodeMax),
+  "captchaToken": zod.string().min(checkAccessCodeBodyCaptchaTokenMin).max(checkAccessCodeBodyCaptchaTokenMax),
+  "captchaAnswer": zod.string().regex(checkAccessCodeBodyCaptchaAnswerRegExp)
 })
 
 export const CheckAccessCodeResponse = zod.object({
@@ -167,10 +363,16 @@ export const MarkPaymentSentResponse = zod.object({
 export const signInBodyAccessKeyMin = 50;
 export const signInBodyAccessKeyMax = 50;
 
+export const signInBodyCaptchaTokenMin = 16;
+export const signInBodyCaptchaTokenMax = 128;
+
+export const signInBodyCaptchaAnswerRegExp = new RegExp('^\\d{1,3}$');
 
 
 export const SignInBody = zod.object({
-  "accessKey": zod.string().min(signInBodyAccessKeyMin).max(signInBodyAccessKeyMax)
+  "accessKey": zod.string().min(signInBodyAccessKeyMin).max(signInBodyAccessKeyMax),
+  "captchaToken": zod.string().min(signInBodyCaptchaTokenMin).max(signInBodyCaptchaTokenMax),
+  "captchaAnswer": zod.string().regex(signInBodyCaptchaAnswerRegExp)
 })
 
 export const SignInResponse = zod.object({
@@ -179,7 +381,8 @@ export const SignInResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date(),
-  "emailChangesRemaining": zod.number()
+  "emailChangesRemaining": zod.number(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
 }),
   "firstLogin": zod.boolean()
 })
@@ -199,7 +402,8 @@ export const GetCurrentUserResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date(),
-  "emailChangesRemaining": zod.number()
+  "emailChangesRemaining": zod.number(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
 })
 
 
@@ -246,7 +450,8 @@ export const UpdateProfileResponse = zod.object({
   "username": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date(),
-  "emailChangesRemaining": zod.number()
+  "emailChangesRemaining": zod.number(),
+  "role": zod.enum(['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'])
 })
 
 
