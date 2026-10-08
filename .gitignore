@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+/bye/admin-access.enc
+/bye/.admin-access.lock
+/bye/.admin-access-*.tmp

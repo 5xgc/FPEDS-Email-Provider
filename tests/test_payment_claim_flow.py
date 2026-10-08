@@ -64,9 +64,16 @@ class PaymentClaimFlowTests(unittest.TestCase):
     def captcha_payload(self):
         challenge = self.client.get("/api/security/captcha").get_json()
         left, right = re.findall(r"\d+", challenge["question"])
+        work_nonce = 0
+        while not service.hashlib.sha256(
+            f"{challenge['token']}:{work_nonce}".encode("utf-8")
+        ).hexdigest().startswith("000"):
+            work_nonce += 1
         return {
             "captchaToken": challenge["token"],
             "captchaAnswer": str(int(left) + int(right)),
+            "captchaWorkNonce": str(work_nonce),
+            "website": "",
         }
 
     def test_payment_is_checked_automatically_and_claim_can_only_create_one_paid_account(self):

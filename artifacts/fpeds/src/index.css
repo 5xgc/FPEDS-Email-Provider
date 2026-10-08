@@ -283,6 +283,19 @@
 .animate-enter-2 { animation-delay: .16s; }
 .animate-pulse-line { animation: pulse-line 2.4s ease-in-out infinite; }
 .animate-float-soft { animation: float-soft 6s ease-in-out infinite; }
+.animate-status-pulse { animation: status-pulse 1.8s ease-in-out infinite; }
+.animate-enter-3 { animation-delay: .24s; }
+.animate-enter-4 { animation-delay: .32s; }
+
+@keyframes status-pulse { 0%,100% { opacity: .55; box-shadow: 0 0 0 0 hsl(0 78% 55% / 0); } 50% { opacity: 1; box-shadow: 0 0 0 5px hsl(0 78% 55% / .1); } }
+@keyframes page-settle { from { opacity: .72; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.moraltown main > .mx-auto { animation: page-settle .48s cubic-bezier(.2,.7,.2,1) both; }
+.moraltown .glass { transition: border-color .25s ease, box-shadow .25s ease, transform .25s cubic-bezier(.2,.8,.2,1); }
+.moraltown .glass:hover { border-color: hsl(0 0% 100% / .17); box-shadow: 0 16px 40px hsl(0 0% 0% / .16); }
+.moraltown button:not(:disabled), .moraltown a { transition: color .2s ease, border-color .2s ease, background-color .2s ease, transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease; }
+.moraltown button:not(:disabled):active { transform: scale(.985); }
+.workspace-sidebar a { transition: color .2s ease, background-color .2s ease, transform .2s ease; }
+.workspace-sidebar a:hover { transform: translateX(2px); }
 
 @supports (animation-timeline: view()) {
   .scroll-stage > * { animation: scroll-reveal linear both; animation-timeline: view(); animation-range: entry 0% cover 28%; }

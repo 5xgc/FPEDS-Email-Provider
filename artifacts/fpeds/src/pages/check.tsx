@@ -11,7 +11,7 @@ type SecurityCheck = {
   apiPaused: boolean;
   announcement: { message: string; updatedAt: string } | null;
   warnings: string[];
-  services: Array<{ id: string; name: string; active: boolean; detail: string }>;
+  services: Array<{ id: string; name: string; active: boolean; required?: boolean; statusKind?: string; detail: string }>;
   routes: Array<{ path: string; methods: string[]; active: boolean }>;
 };
 async function getCheck(): Promise<SecurityCheck> {
@@ -28,9 +28,9 @@ async function getCheck(): Promise<SecurityCheck> {
   return response.json() as Promise<SecurityCheck>;
 }
 
-function StatusBadge({ active }: { active: boolean }) {
+function StatusBadge({ active, label }: { active: boolean; label?: string }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[.12em] ${active ? 'border-emerald-400/20 bg-emerald-400/[.08] text-emerald-200' : 'border-primary/30 bg-primary/[.08] text-primary'}`}>
-    {active ? <Check className="h-3 w-3" /> : <CircleX className="h-3 w-3" />}{active ? 'Active' : 'Unavailable'}
+    {active ? <Check className="h-3 w-3" /> : <CircleX className="h-3 w-3" />}{label ?? (active ? 'Active' : 'Unavailable')}
   </span>;
 }
 
@@ -46,8 +46,13 @@ export default function CheckPage() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
   const unavailable = check ? check.services.filter((service) => !service.active) : [];
-  const notReady = Boolean(check && (!check.mailboxReady || check.lockdown || check.apiPaused || unavailable.length > 0));
+  const unavailableRequired = unavailable.filter((service) => service.required !== false);
+  const notReady = Boolean(check && (!check.mailboxReady || check.lockdown || check.apiPaused || unavailableRequired.length > 0));
   const encryptionServices = check?.services.filter((service) => /encrypt|crypto|key/i.test(`${service.id} ${service.name}`)) ?? [];
   const mailServices = check?.services.filter((service) => /mail|smtp|inbound|outbound|delivery|send|receive/i.test(`${service.id} ${service.name}`)) ?? [];
   const hasEncryptionDown = encryptionServices.some((service) => !service.active);
@@ -99,8 +104,8 @@ export default function CheckPage() {
           <h2 className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.16em] text-primary"><AlertTriangle className="h-4 w-4" /> Warnings</h2>
           <ul className="mt-2 space-y-2">{check.warnings.map((warning, index) => <li key={`${index}-${warning}`} className="flex gap-2 text-sm leading-5 text-foreground/85"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />{warning}</li>)}</ul>
         </section>}
-        {(hasMailDown || hasEncryptionDown) && <div role="alert" className="mb-4 rounded-xl border border-primary/35 bg-primary/[.09] p-4 text-sm leading-6">
-          <strong className="text-primary">Mailbox use is not safe to proceed.</strong> {hasMailDown && 'Mail integrations are unavailable.'}{hasMailDown && hasEncryptionDown ? ' ' : ''}{hasEncryptionDown && 'Encryption service is unavailable.'} Do not use the mailbox until all required checks return active.
+          {(hasMailDown || hasEncryptionDown || unavailableRequired.length > 0) && <div role="alert" className="mb-4 rounded-xl border border-primary/35 bg-primary/[.09] p-4 text-sm leading-6">
+            <strong className="text-primary">DO NOT USE THE MAILBOX.</strong> {hasMailDown && 'Mail integrations are unavailable.'}{hasMailDown && hasEncryptionDown ? ' ' : ''}{hasEncryptionDown && 'Encryption service is unavailable.'}{unavailableRequired.length > 0 && ` ${unavailableRequired.length} required protection or service check${unavailableRequired.length === 1 ? ' is' : 's are'} unavailable.`} Wait for all required checks to return active.
         </div>}
 
         <div className="grid gap-4 lg:grid-cols-[1.05fr_.95fr]">
@@ -109,12 +114,12 @@ export default function CheckPage() {
             {!check.services.length ? <div className="p-8 text-center"><p className="text-sm text-muted-foreground">No service checks were returned.</p><p className="mt-1 text-xs text-muted-foreground">Mailbox readiness cannot be confirmed without service status.</p></div> :
               <ul className="divide-y divide-white/[.07]">{check.services.map((service) => <li key={service.id} className="flex gap-3 p-4 sm:px-5">
                 <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${service.active ? 'bg-emerald-300' : 'bg-primary'}`} aria-hidden="true" />
-                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">{service.name}</h3><StatusBadge active={service.active} /></div>
+                <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">{service.name}</h3><StatusBadge active={service.active} label={service.active && service.statusKind === 'configuration' ? 'Configured' : undefined} /></div>
                   <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{service.detail || 'No additional status detail provided.'}</p>
                   <p className="mt-1 font-mono text-[9px] uppercase tracking-[.1em] text-muted-foreground/70">Check: {service.id}</p>
                 </div>
               </li>)}</ul>}
-            {unavailable.length > 0 && <div className="border-t border-primary/20 bg-primary/[.05] p-4 text-xs leading-5 text-primary">One or more dependencies are unavailable. Do not use the mailbox until required mail integrations and encryption checks are active.</div>}
+            {unavailableRequired.length > 0 && <div className="border-t border-primary/20 bg-primary/[.05] p-4 text-xs leading-5 text-primary">One or more required dependencies are unavailable. DO NOT USE THE MAILBOX until all required integrations and protections are active.</div>}
           </section>
 
           <section className="glass overflow-hidden rounded-2xl border border-white/10">
@@ -131,7 +136,7 @@ export default function CheckPage() {
             <div className="border-t border-white/[.07] px-4 py-3 text-[10px] leading-5 text-muted-foreground">Only routes returned by the authenticated security check are listed.</div>
           </section>
         </div>
-        <footer className="mt-5 flex items-start gap-2 text-[11px] leading-5 text-muted-foreground"><LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> Status is a point-in-time report. No credentials, environment values, or email content are displayed.</footer>
+         <footer className="mt-5 flex items-start gap-2 text-[11px] leading-5 text-muted-foreground"><LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /> Status refreshes every 30 seconds. No credentials, environment values, or email content are displayed. App-level throttling is not a substitute for an edge DDoS/WAF service; large traffic floods require a provider such as Cloudflare in front of the domain.</footer>
       </>}
     </div>
   </MailShell>;

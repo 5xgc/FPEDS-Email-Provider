@@ -4,9 +4,10 @@ import { ArrowRight, CheckCircle2, Copy, LoaderCircle, ShieldCheck } from 'lucid
 import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { solveCaptchaWork } from '@/lib/captcha-work';
 
 type Step = 'checking' | 'invalid' | 'verified' | 'account';
-type SecurityChallenge = { token: string; question: string; expiresAt: number };
+type SecurityChallenge = { token: string; question: string; expiresAt: number; workBits: number };
 
 function generateAccessKey() {
   const digits = new Uint32Array(50);
@@ -26,18 +27,27 @@ export default function ClaimPage() {
   const [error, setError] = useState('');
   const [captcha, setCaptcha] = useState<SecurityChallenge | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaWorkNonce, setCaptchaWorkNonce] = useState<string | null>(null);
+  const [captchaWorking, setCaptchaWorking] = useState(false);
 
   const refreshCaptcha = async () => {
     setCaptchaAnswer('');
+    setCaptchaWorkNonce(null);
+    setCaptchaWorking(true);
     try {
       const response = await fetch('/api/security/captcha', {
         credentials: 'same-origin',
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('Challenge unavailable');
-      setCaptcha(await response.json() as SecurityChallenge);
+      const challenge = await response.json() as SecurityChallenge;
+      setCaptcha(challenge);
+      setCaptchaWorkNonce(String(await solveCaptchaWork(challenge.token, challenge.workBits)));
     } catch {
       setCaptcha(null);
+      setError('The security check could not be prepared. Refresh the page and try again.');
+    } finally {
+      setCaptchaWorking(false);
     }
   };
 
@@ -92,7 +102,7 @@ export default function ClaimPage() {
       setError('Choose a username with at least one letter.');
       return;
     }
-    if (!captcha || !captchaAnswer.trim()) {
+    if (!captcha || !captchaAnswer.trim() || captchaWorkNonce === null) {
       setError('Complete the human check before continuing.');
       return;
     }
@@ -108,6 +118,8 @@ export default function ClaimPage() {
           claimToken: token,
           captchaToken: captcha.token,
           captchaAnswer: captchaAnswer.trim(),
+          captchaWorkNonce,
+          website: '',
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -216,7 +228,7 @@ export default function ClaimPage() {
 
               <label className="block">
                 <span className="mb-2 block font-mono text-[10px] uppercase tracking-[.16em] text-foreground/45">
-                  {captcha?.question ?? 'Loading human check…'}
+                  {captcha?.question ?? 'Loading human check…'}{captcha && captchaWorking ? ' · checking browser' : ''}
                 </span>
                 <Input
                   value={captchaAnswer}
@@ -232,7 +244,7 @@ export default function ClaimPage() {
               </label>
 
               {error && <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={busy || !username.trim() || !captcha} className="h-12 w-full rounded-xl font-semibold">
+              <Button type="submit" disabled={busy || !username.trim() || !captcha || captchaWorkNonce === null} className="h-12 w-full rounded-xl font-semibold">
                 {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                 {busy ? 'Creating account…' : 'Create account'}
                 {!busy ? <ArrowRight className="h-4 w-4" /> : null}

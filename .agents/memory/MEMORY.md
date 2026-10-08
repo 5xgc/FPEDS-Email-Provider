@@ -3,3 +3,4 @@
 - [Render deployment quirks](render-deploy-quirks.md) — keep this Flask/pnpm service rooted at the repo root and avoid fragile relative post-build checks.
 - [MoralTown entrypoint and theme](moraltown-entrypoint-theme.md) — keep `/` on signup, use red/black, and do not restore the marketing landing page.
 - [OpenAPI email constraints](openapi-email-constraints.md) — use a regex pattern instead of `format: email` with the current generated Zod setup.
+- [MoralTown security boundaries](moraltown-security-boundaries.md) — distinguish app-level rate limits from edge DDoS protection; only admins bypass lockdown.

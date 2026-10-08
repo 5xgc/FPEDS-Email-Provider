@@ -11,11 +11,19 @@ import { Button } from '@/components/ui/button';
 type Overview = {
   totals: { users: number; sentToday: number; receivedToday: number };
   series: { accounts: Array<{ date: string; count: number }>; messages: Array<{ date: string; count: number }> };
-  controls: { lockdown: boolean; lockdownMessage: string; apiPaused: boolean; sendingEnabled: boolean; receivingEnabled: boolean };
+  controls: {
+    lockdown: boolean; lockdownMessage: string; apiPaused: boolean; apiPausedUntil: string | null;
+    sendingEnabled: boolean; sendingEnabledUntil: string | null;
+    receivingEnabled: boolean; receivingEnabledUntil: string | null;
+  };
   announcement: { message: string; updatedAt: string } | null;
   audit: Array<{ action: string; actor: string; createdAt: string }>;
+  traffic: {
+    requestsSinceStart: number; rateLimitedSinceStart: number; startedAt: number;
+    topRoutes: Array<{ method: string; path: string; count: number }>;
+  };
 };
-type User = { id: string; username: string; email: string; role: string; createdAt: string };
+type User = { id: string; username: string; role: string; createdAt: string };
 type ApiError = { message: string };
 const roles = ['user', 'soldier', 'moraltown', 'admin', 'co_founder', 'og', 'fed'];
 
@@ -96,6 +104,7 @@ export default function AdminPage() {
   const [announcement, setAnnouncement] = useState('');
   const [lockMessage, setLockMessage] = useState('');
   const [search, setSearch] = useState('');
+  const [pauseMinutes, setPauseMinutes] = useState(60);
   const role = String((currentUser.data as unknown as { role?: string } | undefined)?.role ?? '').toLowerCase();
   const canOperate = role === 'admin' || role === 'co_founder';
   const canManageRoles = role === 'admin';
@@ -125,7 +134,12 @@ export default function AdminPage() {
     try {
       const data = await request<{ controls: Overview['controls'] }>('/api/admin/control', {
         method: 'POST',
-        body: JSON.stringify({ key, enabled, ...(key === 'lockdown' ? { message: lockMessage.trim() } : {}) }),
+        body: JSON.stringify({
+          key,
+          enabled,
+          ...(!enabled && ['apiPaused', 'sendingEnabled', 'receivingEnabled'].includes(key) ? { durationMinutes: pauseMinutes } : {}),
+          ...(key === 'lockdown' ? { message: lockMessage.trim() } : {}),
+        }),
       });
       setOverview((old) => old ? { ...old, controls: data.controls } : old);
       setNotice(`${key === 'lockdown' ? 'Lockdown' : key === 'apiPaused' ? 'API pause' : key === 'sendingEnabled' ? 'Sending' : 'Receiving'} setting updated.`);
@@ -183,11 +197,12 @@ export default function AdminPage() {
 
       {error ? <Panel className="mb-5 p-6"><div role="alert" className="flex items-start gap-3"><AlertTriangle className="mt-1 h-5 w-5 text-primary" /><div className="flex-1"><h2 className="font-display text-xl">Overview unavailable</h2><p className="mt-1 text-sm text-muted-foreground">{error}</p><Button className="mt-4" onClick={() => { setLoading(true); void loadOverview(); }}>Retry overview</Button></div></div></Panel> : loading && !overview ?
         <div aria-busy="true" aria-label="Loading admin overview" className="mb-5 grid gap-3 sm:grid-cols-3"><div className="glass h-28 animate-pulse rounded-2xl" /><div className="glass h-28 animate-pulse rounded-2xl" /><div className="glass h-28 animate-pulse rounded-2xl" /></div> : overview && <>
-        <section aria-label="Privacy-safe activity totals" className="mb-4 grid gap-3 sm:grid-cols-3">
+        <section aria-label="Privacy-safe activity totals" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: 'Accounts', value: overview.totals.users, icon: Users, note: 'registered mailboxes' },
             { label: 'Sent today', value: overview.totals.sentToday, icon: ArrowUpRight, note: 'message count only' },
             { label: 'Received today', value: overview.totals.receivedToday, icon: ArrowDownRight, note: 'message count only' },
+            { label: 'API requests', value: overview.traffic.requestsSinceStart, icon: Activity, note: 'since this process started' },
           ].map((metric, index) => <Panel key={metric.label} className={`animate-enter animate-enter-${Math.min(index + 1, 2)} relative overflow-hidden p-4 sm:p-5`}>
             <span className="absolute -right-3 -top-5 text-primary/[.08]"><metric.icon className="h-24 w-24" /></span>
             <div className="relative flex items-center justify-between"><span className="font-mono text-[10px] uppercase tracking-[.17em] text-muted-foreground">{metric.label}</span><metric.icon className="h-4 w-4 text-primary" /></div>
@@ -208,9 +223,38 @@ export default function AdminPage() {
           <p className="border-t border-white/[.07] px-4 py-3 text-[11px] leading-5 text-muted-foreground sm:px-5">Counts only. No subjects, senders, recipients, or message bodies are collected in this view.</p>
         </Panel>
 
+        <Panel className="mb-4 overflow-hidden">
+          <div className="flex flex-col justify-between gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
+            <div><p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Request protection</p><h2 className="mt-1 font-display text-xl">API traffic snapshot</h2></div>
+            <span className="rounded-full border border-white/10 bg-white/[.03] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground">{overview.traffic.rateLimitedSinceStart.toLocaleString()} rate limited</span>
+          </div>
+          <div className="grid gap-4 p-4 sm:grid-cols-[.7fr_1.3fr] sm:p-5">
+            <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-4">
+              <p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Process started</p>
+              <p className="mt-2 text-sm">{dateTime(new Date(overview.traffic.startedAt * 1000).toISOString())}</p>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">Counters reset when this app process restarts. No IP addresses, message contents, or request bodies are retained.</p>
+            </div>
+            <div className="overflow-x-auto">
+              {!overview.traffic.topRoutes.length ? <p className="grid min-h-24 place-items-center text-sm text-muted-foreground">No API traffic counted yet.</p> :
+                <table className="w-full min-w-[380px] border-collapse text-left">
+                  <thead><tr className="border-b border-white/[.08] font-mono text-[9px] uppercase tracking-[.12em] text-muted-foreground"><th className="px-2 py-2 font-normal">API route</th><th className="px-2 py-2 font-normal">Method</th><th className="px-2 py-2 text-right font-normal">Requests</th></tr></thead>
+                  <tbody className="divide-y divide-white/[.06]">{overview.traffic.topRoutes.map((route) => <tr key={`${route.method}-${route.path}`} className="hover:bg-white/[.025]"><td className="max-w-[340px] break-all px-2 py-2 font-mono text-[10px]">{route.path}</td><td className="px-2 py-2 font-mono text-[9px] text-muted-foreground">{route.method}</td><td className="px-2 py-2 text-right font-mono text-xs">{route.count.toLocaleString()}</td></tr>)}</tbody>
+                </table>}
+            </div>
+          </div>
+        </Panel>
+
         <div className="mb-4 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
           <Panel className="overflow-hidden">
             <div className="border-b border-white/10 p-4 sm:p-5"><p className="font-mono text-[10px] uppercase tracking-[.18em] text-primary">Service controls</p><h2 className="mt-1 font-display text-2xl">Operating posture</h2><p className="mt-1 text-xs text-muted-foreground">Changes take effect through server-enforced controls.</p></div>
+            <div className="border-b border-white/[.07] px-4 py-3 sm:px-5">
+              <label htmlFor="pause-duration" className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                <span><strong className="font-medium">Automatic resume</strong><span className="mt-1 block text-[11px] text-muted-foreground">Used when API, sending, or receiving is paused.</span></span>
+                <select id="pause-duration" value={pauseMinutes} onChange={(event) => setPauseMinutes(Number(event.target.value))} className="rounded-lg border border-white/10 bg-[#151515] px-3 py-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <option value={15}>15 minutes</option><option value={60}>1 hour</option><option value={360}>6 hours</option><option value={1440}>24 hours</option>
+                </select>
+              </label>
+            </div>
             <div className="divide-y divide-white/[.07] px-4 sm:px-5">
               {([
                 ['lockdown', 'Mailbox lockdown', 'Stop mailbox access while an incident is contained.', controls?.lockdown ?? false],
@@ -218,7 +262,11 @@ export default function AdminPage() {
                 ['sendingEnabled', 'Sending enabled', 'Permit outbound mail delivery.', controls?.sendingEnabled ?? false],
                 ['receivingEnabled', 'Receiving enabled', 'Permit inbound mail delivery.', controls?.receivingEnabled ?? false],
               ] as const).map(([key, label, description, enabled]) => <div key={key} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0"><p className="text-sm font-medium">{label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div>
+                <div className="min-w-0"><p className="text-sm font-medium">{label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+                  {key === 'apiPaused' && controls?.apiPausedUntil && <p className="mt-1 font-mono text-[9px] text-primary">Auto-resumes {dateTime(controls.apiPausedUntil)}</p>}
+                  {key === 'sendingEnabled' && controls?.sendingEnabledUntil && <p className="mt-1 font-mono text-[9px] text-primary">Auto-resumes {dateTime(controls.sendingEnabledUntil)}</p>}
+                  {key === 'receivingEnabled' && controls?.receivingEnabledUntil && <p className="mt-1 font-mono text-[9px] text-primary">Auto-resumes {dateTime(controls.receivingEnabledUntil)}</p>}
+                </div>
                 <button type="button" onClick={() => void performControl(key, !enabled)} disabled={!canOperate || Boolean(busy) || !controls} aria-pressed={enabled} className={`flex min-h-10 shrink-0 items-center justify-between gap-3 rounded-xl border px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:min-w-[136px] ${enabled ? 'border-primary/35 bg-primary/10 text-primary' : 'border-white/10 bg-white/[.025] text-muted-foreground'}`}>
                   <span>{enabled ? 'Enabled' : 'Disabled'}</span><span className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-white/15'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} /></span>
                 </button>

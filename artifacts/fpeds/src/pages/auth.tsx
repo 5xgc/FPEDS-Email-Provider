@@ -6,8 +6,9 @@ import { getGetCurrentUserQueryKey, useGetCurrentUser, useSignIn, useSignUp } fr
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { readCredentialFile } from '@/lib/secure-credential-file';
+import { solveCaptchaWork } from '@/lib/captcha-work';
 
-type SecurityChallenge = { token: string; question: string; expiresAt: number };
+type SecurityChallenge = { token: string; question: string; expiresAt: number; workBits: number };
 
 function generateAccessKey() {
   const digits = new Uint32Array(50);
@@ -37,35 +38,50 @@ export default function AuthPage() {
   const [purchaseToken, setPurchaseToken] = useState('');
   const [captcha, setCaptcha] = useState<SecurityChallenge | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaWorkNonce, setCaptchaWorkNonce] = useState<string | null>(null);
+  const [captchaWorking, setCaptchaWorking] = useState(false);
   const signIn = useSignIn();
   const signUp = useSignUp();
   const pending = signIn.isPending || signUp.isPending;
 
   const refreshCaptcha = useCallback(async () => {
     setCaptchaAnswer('');
+    setCaptchaWorkNonce(null);
+    setCaptchaWorking(true);
     try {
       const response = await fetch('/api/security/captcha', { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) throw new Error('Challenge unavailable');
-      setCaptcha(await response.json() as SecurityChallenge);
+      const challenge = await response.json() as SecurityChallenge;
+      setCaptcha(challenge);
+      const workNonce = await solveCaptchaWork(challenge.token, challenge.workBits);
+      setCaptchaWorkNonce(String(workNonce));
     } catch {
       setCaptcha(null);
+      setError('The security check could not be prepared. Refresh the page and try again.');
+    } finally {
+      setCaptchaWorking(false);
     }
   }, []);
 
   useEffect(() => { void refreshCaptcha(); }, [refreshCaptcha]);
 
   const captchaProof = () => {
-    if (!captcha || !captchaAnswer.trim()) {
+    if (!captcha || !captchaAnswer.trim() || captchaWorkNonce === null) {
       setError('Complete the human check before continuing.');
       return null;
     }
-    return { captchaToken: captcha.token, captchaAnswer: captchaAnswer.trim() };
+    return {
+      captchaToken: captcha.token,
+      captchaAnswer: captchaAnswer.trim(),
+      captchaWorkNonce,
+      website: '',
+    };
   };
 
   const captchaField = (id: string) => (
     <label className="block">
       <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-white/40">
-        {captcha?.question ?? 'Loading human check…'}
+        {captcha?.question ?? 'Loading human check…'}{captcha && captchaWorking ? ' · checking browser' : ''}
       </span>
       <Input
         id={id}
@@ -110,7 +126,7 @@ export default function AuthPage() {
     }
   };
 
-  const enterWithKey = (key: string, proof: { captchaToken: string; captchaAnswer: string }) => {
+  const enterWithKey = (key: string, proof: { captchaToken: string; captchaAnswer: string; captchaWorkNonce: string; website: string }) => {
     signIn.mutate(
       { data: { accessKey: key, ...proof } },
       {
@@ -252,7 +268,7 @@ export default function AuthPage() {
               {mode === 'signup' && <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.07] px-3 py-3 text-xs leading-5 text-white/50"><KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><span>Save this generated key. It is the only way back into your mailbox.</span></div>}
               {captchaField('auth-captcha-answer')}
               {error && <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary" data-testid="status-auth-error">{error}</p>}
-              <Button type="submit" disabled={pending || !captcha} className="h-12 w-full rounded-xl font-semibold" data-testid="button-submit-auth">{pending ? 'Opening secure channel…' : mode === 'signin' ? 'Enter mailbox' : 'Create private mailbox'}{!pending && <ArrowRight className="h-4 w-4" />}</Button>
+              <Button type="submit" disabled={pending || !captcha || captchaWorkNonce === null} className="h-12 w-full rounded-xl font-semibold" data-testid="button-submit-auth">{pending ? 'Opening secure channel…' : mode === 'signin' ? 'Enter mailbox' : 'Create private mailbox'}{!pending && <ArrowRight className="h-4 w-4" />}</Button>
             </form>
           </>
         ) : (
@@ -265,7 +281,7 @@ export default function AuthPage() {
             <Input value={filePassphrase} onChange={(event) => setFilePassphrase(event.target.value)} type="password" placeholder="File passphrase" className="h-12 border-white/10 bg-white/[.04] text-white placeholder:text-white/20" data-testid="input-file-passphrase" />
             {captchaField('file-captcha-answer')}
             {error && <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary" data-testid="status-auth-error">{error}</p>}
-            <Button type="submit" disabled={pending || !captcha} className="h-12 w-full rounded-xl font-semibold" data-testid="button-login-file"><Upload className="h-4 w-4" /> {pending ? 'Opening secure channel…' : 'Unlock key file'}</Button>
+            <Button type="submit" disabled={pending || !captcha || captchaWorkNonce === null} className="h-12 w-full rounded-xl font-semibold" data-testid="button-login-file"><Upload className="h-4 w-4" /> {pending ? 'Opening secure channel…' : 'Unlock key file'}</Button>
             <button type="button" onClick={() => openMode('signin')} className="w-full text-center text-xs text-white/35 transition hover:text-white/70" data-testid="button-back-to-key-login">Back to access key</button>
           </form>
         )}
@@ -299,7 +315,7 @@ export default function AuthPage() {
                   <Input autoFocus value={codeInput} onChange={(event) => setCodeInput(event.target.value)} autoComplete="off" className="h-12 border-white/10 bg-white/[0.04] text-white placeholder:text-white/25" placeholder="Access code" aria-label="Free access code" />
                   {captchaField('access-code-captcha-answer')}
                   {error && <p className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary">{error}</p>}
-                  <Button type="submit" disabled={!codeInput.trim() || !captcha} className="h-12 w-full rounded-xl font-semibold">Continue <ArrowRight className="h-4 w-4" /></Button>
+                  <Button type="submit" disabled={!codeInput.trim() || !captcha || captchaWorkNonce === null} className="h-12 w-full rounded-xl font-semibold">Continue <ArrowRight className="h-4 w-4" /></Button>
                 </form>
               </>
             )}

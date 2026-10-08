@@ -10,13 +10,14 @@ import hashlib
 import fcntl
 import hmac
 import html
+import base64
 import os
 import re
 import secrets
 import sqlite3
 import subprocess
 import threading
-from base64 import urlsafe_b64encode
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
 from email.utils import parseaddr
 from pathlib import Path
@@ -32,6 +33,10 @@ from collections import OrderedDict
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from cryptography.fernet import Fernet, InvalidToken
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from flask import Flask, jsonify, request, send_from_directory, session
 from crypto_payments import (
     ASSETS as PAYMENT_ASSETS,
@@ -79,6 +84,110 @@ if IS_PRODUCTION and len(SESSION_SECRET) < 32:
         "Set SESSION_SECRET to a random value of at least 32 characters in production."
     )
 
+ADMIN_VAULT_PATH = ROOT / "bye" / "admin-access.enc"
+ADMIN_VAULT_PASSWORD = os.environ.get("MORALTOWN_ADMIN_VAULT_PASSWORD", "").strip()
+ADMIN_VAULT_ITERATIONS = 250_000
+
+
+def _admin_vault_derive_key(password: str, salt: bytes) -> bytes:
+    return PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=ADMIN_VAULT_ITERATIONS,
+    ).derive(password.encode("utf-8"))
+
+
+def _write_admin_vault(access_key: str, password: str) -> None:
+    salt = secrets.token_bytes(16)
+    iv = secrets.token_bytes(12)
+    ciphertext = AESGCM(_admin_vault_derive_key(password, salt)).encrypt(
+        iv, access_key.encode("ascii"), None
+    )
+    envelope = {
+        "format": "fpeds-encrypted-key",
+        "version": 1,
+        "username": "admin",
+        "salt": base64.b64encode(salt).decode("ascii"),
+        "iv": base64.b64encode(iv).decode("ascii"),
+        "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    vault_dir = ADMIN_VAULT_PATH.parent
+    vault_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(vault_dir, 0o700)
+    temporary_path = vault_dir / f".admin-access-{secrets.token_hex(8)}.tmp"
+    descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(envelope, output, separators=(",", ":"))
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, ADMIN_VAULT_PATH)
+        os.chmod(ADMIN_VAULT_PATH, 0o600)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _read_admin_vault(password: str) -> str:
+    envelope = json.loads(ADMIN_VAULT_PATH.read_text(encoding="utf-8"))
+    if (
+        envelope.get("format") != "fpeds-encrypted-key"
+        or envelope.get("version") != 1
+    ):
+        raise ValueError("Unsupported encrypted admin credential format.")
+    salt = base64.b64decode(envelope["salt"], validate=True)
+    iv = base64.b64decode(envelope["iv"], validate=True)
+    ciphertext = base64.b64decode(envelope["ciphertext"], validate=True)
+    key = AESGCM(_admin_vault_derive_key(password, salt)).decrypt(
+        iv, ciphertext, None
+    ).decode("ascii")
+    if not re.fullmatch(r"\d{50}", key):
+        raise ValueError("The encrypted admin access key is invalid.")
+    return key
+
+
+def load_admin_access_key() -> str:
+    environment_key = os.environ.get("MORALTOWN_ADMIN_ACCESS_KEY", "").strip()
+    if environment_key and not re.fullmatch(r"\d{50}", environment_key):
+        raise RuntimeError("MORALTOWN_ADMIN_ACCESS_KEY must contain exactly 50 digits.")
+    password = ADMIN_VAULT_PASSWORD
+    if password and len(password) < 32:
+        raise RuntimeError(
+            "MORALTOWN_ADMIN_VAULT_PASSWORD must be at least 32 characters."
+        )
+    if not password:
+        return environment_key
+
+    vault_dir = ADMIN_VAULT_PATH.parent
+    vault_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(vault_dir, 0o700)
+    lock_path = vault_dir / ".admin-access.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        os.chmod(lock_path, 0o600)
+        with os.fdopen(descriptor, "r+b") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            if ADMIN_VAULT_PATH.exists() and not environment_key:
+                try:
+                    return _read_admin_vault(password)
+                except (OSError, ValueError, KeyError, InvalidToken, InvalidTag) as exc:
+                    if environment_key:
+                        return environment_key
+                    raise RuntimeError(
+                        "Could not decrypt bye/admin-access.enc. Check the "
+                        "MORALTOWN_ADMIN_VAULT_PASSWORD secret."
+                    ) from exc
+
+            access_key = environment_key or "".join(str(secrets.randbelow(10)) for _ in range(50))
+            _write_admin_vault(access_key, password)
+            return access_key
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+
 app = Flask(
     __name__,
     static_folder=str(STATIC_DIR) if STATIC_DIR.exists() else None,
@@ -103,22 +212,29 @@ app.config.update(
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Replit/Render terminate TLS and forward one trusted client address to Flask.
-# The app limiter is a second layer; use provider-level edge filtering for DDoS.
-RATE_LIMITS: OrderedDict[tuple[str, str], tuple[float, int]] = OrderedDict()
+# These in-process limits are a second layer; use provider-level edge filtering
+# for distributed or volumetric DDoS traffic.
+RATE_LIMITS: OrderedDict[tuple[str, str], tuple[float, float]] = OrderedDict()
 RATE_LIMIT_LOCK = threading.Lock()
 RATE_LIMIT_MAX_CLIENTS = 20_000
 RATE_LIMIT_RULES = {
-    "site": (1200, 60),
-    "api": (240, 60),
-    "auth": (12, 60),
-    "captcha": (30, 60),
-    "send": (12, 60),
+    "site": (600, 60),
+    "api": (180, 60),
+    "auth": (8, 60),
+    "captcha": (20, 60),
+    "send": (8, 60),
 }
+RATE_LIMIT_BLOCKED = 0
+API_REQUESTS = 0
+API_ROUTE_COUNTS: OrderedDict[tuple[str, str], int] = OrderedDict()
+API_ROUTE_COUNTS_MAX = 500
+APP_STARTED_AT = int(time.time())
+CAPTCHA_WORK_BITS = 12
+CAPTCHA_CLEANUP_LOCK = threading.Lock()
+CAPTCHA_NEXT_CLEANUP = 0
 
 FREE_ACCESS_CODE = os.environ.get("MORALTOWN_ACCESS_CODE", "").strip()
-ADMIN_ACCESS_KEY = os.environ.get("MORALTOWN_ADMIN_ACCESS_KEY", "").strip()
-if ADMIN_ACCESS_KEY and not re.fullmatch(r"\d{50}", ADMIN_ACCESS_KEY):
-    raise RuntimeError("MORALTOWN_ADMIN_ACCESS_KEY must contain exactly 50 digits.")
+ADMIN_ACCESS_KEY = load_admin_access_key()
 PAYMENT_EXPIRY_SECONDS = 60 * 60 * 2
 PAYMENT_CHECK_INTERVAL_SECONDS = 30
 PAYMENT_MONITOR_INTERVAL_SECONDS = 5
@@ -515,26 +631,78 @@ def load_system_settings() -> dict[str, str]:
 
 def control_state() -> dict[str, Any]:
     settings = load_system_settings()
+    now = time.time()
+
+    def timed_enabled(
+        setting_key: str, expires_key: str, default: bool
+    ) -> tuple[bool, str | None]:
+        raw_value = settings.get(setting_key, "1" if default else "0")
+        raw_expiry = settings.get(expires_key, "")
+        try:
+            expires_at = float(raw_expiry) if raw_expiry else 0
+        except ValueError:
+            expires_at = 0
+        if raw_value == "0" and expires_at and expires_at <= now:
+            write_system_setting(setting_key, "1")
+            write_system_setting(expires_key, "")
+            return True, None
+        if raw_value != "0":
+            return True, None
+        expires_iso = (
+            datetime.fromtimestamp(expires_at, timezone.utc).isoformat()
+            if expires_at
+            else None
+        )
+        return False, expires_iso
+
+    api_paused = settings.get("api_paused", "0") == "1"
+    try:
+        api_paused_expiry = float(settings.get("api_paused_expires_at", "") or 0)
+    except ValueError:
+        api_paused_expiry = 0
+    if api_paused and api_paused_expiry and api_paused_expiry <= now:
+        write_system_setting("api_paused", "0")
+        write_system_setting("api_paused_expires_at", "")
+        api_paused = False
+    api_paused_until = (
+        datetime.fromtimestamp(api_paused_expiry, timezone.utc).isoformat()
+        if api_paused and api_paused_expiry
+        else None
+    )
+    sending_enabled, sending_until = timed_enabled(
+        "sending_enabled", "sending_enabled_expires_at", True
+    )
+    receiving_enabled, receiving_until = timed_enabled(
+        "receiving_enabled", "receiving_enabled_expires_at", True
+    )
     return {
         "lockdown": settings.get("lockdown", "0") == "1",
         "lockdownMessage": settings.get(
             "lockdown_message", "WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON"
         ),
-        "apiPaused": settings.get("api_paused", "0") == "1",
-        "sendingEnabled": settings.get("sending_enabled", "1") == "1",
-        "receivingEnabled": settings.get("receiving_enabled", "1") == "1",
+        "apiPaused": api_paused,
+        "apiPausedUntil": api_paused_until,
+        "sendingEnabled": sending_enabled,
+        "sendingEnabledUntil": sending_until,
+        "receivingEnabled": receiving_enabled,
+        "receivingEnabledUntil": receiving_until,
     }
 
 
 def mailbox_operational(controls: dict[str, Any] | None = None) -> bool:
     controls = controls or control_state()
+    admin_access_active = bool(ADMIN_ACCESS_KEY)
+    encryption_active = len(SESSION_SECRET) >= 32
     outbound_active = bool(
         os.environ.get("BREVO_API_KEY", "").strip()
         or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
     ) and bool(BREVO_SENDER_DOMAIN)
     inbound_active = bool(os.environ.get("MAILGUN_SIGNING_KEY", "").strip())
     return bool(
-        len(SESSION_SECRET) >= 32
+        encryption_active
+        and admin_access_active
+        and ADMIN_VAULT_PATH.is_file()
+        and bool(ADMIN_VAULT_PASSWORD)
         and outbound_active
         and inbound_active
         and controls["sendingEnabled"]
@@ -1087,26 +1255,37 @@ def handle_send():
 
 
 def rate_limit_response(bucket: str, maximum: int, seconds: int):
+    global RATE_LIMIT_BLOCKED
     source = request.remote_addr or "unknown"
     source_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()[:32]
     key = (bucket, source_hash)
     now = time.time()
+    refill_rate = maximum / seconds
+    burst_capacity = min(maximum, {"site": 60, "api": 30, "auth": 4, "captcha": 5, "send": 3}.get(bucket, 10))
     with RATE_LIMIT_LOCK:
         current = RATE_LIMITS.get(key)
-        if current is None or now - current[0] >= seconds:
-            RATE_LIMITS[key] = (now, 1)
+        if current is None:
+            tokens = float(burst_capacity)
+        else:
+            last_updated, stored_tokens = current
+            tokens = min(
+                float(burst_capacity),
+                stored_tokens + max(0, now - last_updated) * refill_rate,
+            )
+        if tokens >= 1:
+            RATE_LIMITS[key] = (now, tokens - 1)
             RATE_LIMITS.move_to_end(key)
             allowed = True
-            retry_after = seconds
         else:
-            started, count = current
-            RATE_LIMITS[key] = (started, count + 1)
+            RATE_LIMITS[key] = (now, tokens)
             RATE_LIMITS.move_to_end(key)
-            allowed = count < maximum
-            retry_after = max(1, int(seconds - (now - started)))
+            allowed = False
+        retry_after = max(1, int((1 - tokens) / refill_rate + 0.999))
         if len(RATE_LIMITS) > RATE_LIMIT_MAX_CLIENTS:
             for _ in range(len(RATE_LIMITS) - RATE_LIMIT_MAX_CLIENTS):
                 RATE_LIMITS.popitem(last=False)
+        if not allowed:
+            RATE_LIMIT_BLOCKED += 1
     if allowed:
         return None
     response = app.make_response(
@@ -1116,11 +1295,28 @@ def rate_limit_response(bucket: str, maximum: int, seconds: int):
     return response
 
 
+def api_metrics_snapshot() -> dict[str, Any]:
+    with RATE_LIMIT_LOCK:
+        routes = [
+            {"method": method, "path": path, "count": count}
+            for (method, path), count in sorted(
+                API_ROUTE_COUNTS.items(), key=lambda item: item[1], reverse=True
+            )[:12]
+        ]
+        return {
+            "requestsSinceStart": API_REQUESTS,
+            "rateLimitedSinceStart": RATE_LIMIT_BLOCKED,
+            "startedAt": APP_STARTED_AT,
+            "topRoutes": routes,
+        }
+
+
 def captcha_answer_hash(token: str, answer: str) -> str:
     return hashlib.sha256(f"{token}:{answer.strip()}".encode("utf-8")).hexdigest()
 
 
 def issue_captcha() -> dict[str, Any]:
+    global CAPTCHA_NEXT_CLEANUP
     left = secrets.randbelow(8) + 2
     right = secrets.randbelow(8) + 2
     token = secrets.token_urlsafe(24)
@@ -1138,21 +1334,33 @@ def issue_captcha() -> dict[str, Any]:
                 now,
             ),
         )
-        if now % 30 == 0:
-            connection.execute(
-                "DELETE FROM captcha_challenges WHERE expires_at < ?", (now,)
-            )
+        with CAPTCHA_CLEANUP_LOCK:
+            if now >= CAPTCHA_NEXT_CLEANUP:
+                connection.execute(
+                    "DELETE FROM captcha_challenges WHERE expires_at < ?", (now,)
+                )
+                CAPTCHA_NEXT_CLEANUP = now + 60
     return {
         "token": token,
         "question": f"What is {left} + {right}?",
         "expiresAt": now + 300,
+        "workBits": CAPTCHA_WORK_BITS,
     }
 
 
 def consume_captcha(payload: dict[str, Any]) -> bool:
     token = str(payload.get("captchaToken", "")).strip()
     answer = str(payload.get("captchaAnswer", "")).strip()
-    if not token or len(token) > 128 or not re.fullmatch(r"\d{1,3}", answer):
+    work_nonce = str(payload.get("captchaWorkNonce", "")).strip()
+    if (
+        not token
+        or len(token) > 128
+        or not re.fullmatch(r"\d{1,3}", answer)
+        or not re.fullmatch(r"\d{1,16}", work_nonce)
+        or str(payload.get("website", "")).strip()
+    ):
+        return False
+    if int(work_nonce) > 9_007_199_254_740_991:
         return False
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     with db_connection() as connection:
@@ -1166,8 +1374,13 @@ def consume_captcha(payload: dict[str, Any]) -> bool:
         connection.execute(
             "DELETE FROM captcha_challenges WHERE token_hash = ?", (token_hash,)
         )
-    return int(row["expires_at"]) >= int(time.time()) and hmac.compare_digest(
-        str(row["answer_hash"]), captcha_answer_hash(token, answer)
+    proof_digest = hashlib.sha256(f"{token}:{work_nonce}".encode("utf-8")).hexdigest()
+    return (
+        int(row["expires_at"]) >= int(time.time())
+        and hmac.compare_digest(
+            str(row["answer_hash"]), captcha_answer_hash(token, answer)
+        )
+        and proof_digest.startswith("0" * ((CAPTCHA_WORK_BITS + 3) // 4))
     )
 
 
@@ -1189,23 +1402,40 @@ def security_status() -> dict[str, Any]:
         or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
     ) and bool(BREVO_SENDER_DOMAIN)
     inbound_active = bool(os.environ.get("MAILGUN_SIGNING_KEY", "").strip())
+    vault_active = bool(ADMIN_ACCESS_KEY and ADMIN_VAULT_PATH.is_file())
     services = [
         {
             "id": "admin-access",
             "name": "Admin account",
             "active": bool(ADMIN_ACCESS_KEY),
+            "required": True,
+            "statusKind": "configuration",
             "detail": (
-                "Admin sign-in is provisioned through a server secret; the access key is never shown."
+                "Admin sign-in is provisioned; the key is never returned by this check."
                 if ADMIN_ACCESS_KEY
-                else "Admin sign-in is not provisioned. Set MORALTOWN_ADMIN_ACCESS_KEY in Replit Secrets."
+                else "Admin sign-in is not provisioned. Set a strong MORALTOWN_ADMIN_VAULT_PASSWORD secret and restart the app."
+            ),
+        },
+        {
+            "id": "admin-key-vault",
+            "name": "Encrypted admin key file",
+            "active": vault_active,
+            "required": True,
+            "statusKind": "configuration",
+            "detail": (
+                "bye/admin-access.enc is encrypted with a passphrase held outside the file."
+                if vault_active
+                else "Encrypted backup is not active. Configure MORALTOWN_ADMIN_VAULT_PASSWORD to create the file."
             ),
         },
         {
             "id": "session-encryption",
             "name": "Credential and mailbox encryption",
             "active": session_crypto_active,
+            "required": True,
+            "statusKind": "configuration",
             "detail": (
-                "Encrypted mailbox fields require the same persistent SESSION_SECRET."
+                "Encrypted mailbox fields and sessions use a persistent server-side key; key values are never shown."
                 if session_crypto_active
                 else "Encryption is not configured with a strong session secret."
             ),
@@ -1214,8 +1444,10 @@ def security_status() -> dict[str, Any]:
             "id": "outbound-mail",
             "name": "Outbound mail provider",
             "active": outbound_active and controls["sendingEnabled"],
+            "required": True,
+            "statusKind": "configuration",
             "detail": (
-                "Provider credentials are present; values are never shown."
+                "Provider credentials are configured; this check does not send a test message."
                 if outbound_active
                 else "Outbound mail provider is not configured."
             ),
@@ -1224,33 +1456,77 @@ def security_status() -> dict[str, Any]:
             "id": "inbound-mail",
             "name": "Inbound mail signature verification",
             "active": inbound_active and controls["receivingEnabled"],
+            "required": True,
+            "statusKind": "configuration",
             "detail": (
-                "Signed inbound delivery is configured; key values are never shown."
+                "Inbound signing credentials are configured; this check does not deliver a test message."
                 if inbound_active
                 else "Mailgun signing is not configured."
             ),
         },
         {
             "id": "captcha",
-            "name": "One-use human-check challenges",
+            "name": "Custom challenge and proof-of-work",
             "active": True,
-            "detail": "Short-lived challenges are verified server-side and consumed once.",
+            "required": True,
+            "statusKind": "enforcement",
+            "detail": "Authentication challenges expire, are single-use, and require a human answer plus a SHA-256 work proof.",
         },
         {
             "id": "request-throttle",
-            "name": "Application request throttling",
+            "name": "Application-layer DDoS throttling",
             "active": True,
-            "detail": "Per-process limits cover all page and API requests, with tighter authentication and send limits.",
+            "required": True,
+            "statusKind": "enforcement",
+            "detail": "Bounded per-process token buckets cover pages and APIs, with tighter authentication, challenge, and send limits. Use an edge WAF for distributed traffic floods.",
         },
         {
             "id": "api-controls",
             "name": "Server-enforced operating controls",
             "active": True,
+            "required": True,
+            "statusKind": "enforcement",
             "detail": "Lockdown, API pause, send pause, and receive pause are enforced by Flask.",
+        },
+        {
+            "id": "same-origin-writes",
+            "name": "Cross-site request protection",
+            "active": True,
+            "required": True,
+            "statusKind": "enforcement",
+            "detail": "Browser writes reject mismatched origins and cross-site fetch requests.",
+        },
+        {
+            "id": "resend-payment",
+            "name": "Resend payment email integration",
+            "active": bool(os.environ.get("RESEND_API_KEY", "").strip()),
+            "required": False,
+            "statusKind": "configuration",
+            "detail": (
+                "A Resend credential is configured; the value is hidden and live delivery is not probed here."
+                if os.environ.get("RESEND_API_KEY", "").strip()
+                else "Optional Resend payment-email integration is not configured."
+            ),
+        },
+        {
+            "id": "groq-spam",
+            "name": "Optional spam-scoring API",
+            "active": bool(os.environ.get("GROQ_API_KEY", "").strip()),
+            "required": False,
+            "statusKind": "configuration",
+            "detail": (
+                "A spam-scoring credential is configured; the value is hidden and live access is not probed here."
+                if os.environ.get("GROQ_API_KEY", "").strip()
+                else "Optional AI spam scoring is off; built-in spam heuristics remain available."
+            ),
         },
     ]
     ready = mailbox_operational(controls)
     warnings = []
+    if not ADMIN_ACCESS_KEY:
+        warnings.append("Admin access is not provisioned. DO NOT USE THE MAILBOX until the admin account is active.")
+    if not vault_active:
+        warnings.append("The encrypted admin-key file is unavailable. DO NOT USE THE MAILBOX until the admin vault is active.")
     if not session_crypto_active:
         warnings.append("Encryption is unavailable. Do not use the mailbox until SESSION_SECRET is configured.")
     if not outbound_active or not controls["sendingEnabled"]:
@@ -1261,6 +1537,9 @@ def security_status() -> dict[str, Any]:
         warnings.append("API traffic is paused by an administrator.")
     if controls["lockdown"]:
         warnings.append("The website is in administrator lockdown.")
+    warnings.append(
+        "Application request limits are process-local. Put the domain behind an edge WAF for distributed or volumetric DDoS protection."
+    )
     routes = []
     for rule in sorted(app.url_map.iter_rules(), key=lambda item: item.rule):
         if not rule.rule.startswith("/api/"):
@@ -1288,6 +1567,7 @@ def security_status() -> dict[str, Any]:
         "warnings": warnings,
         "services": services,
         "routes": routes,
+        "traffic": api_metrics_snapshot(),
     }
 
 
@@ -1327,6 +1607,9 @@ def protect_request():
                 return limited
         if request.method not in {"GET", "HEAD", "OPTIONS"} and not is_webhook:
             origin = request.headers.get("Origin")
+            fetch_site = request.headers.get("Sec-Fetch-Site", "").lower()
+            if fetch_site == "cross-site":
+                return error_response("A same-origin request is required.", 403)
             if origin:
                 parsed = urlsplit(origin)
                 allowed_schemes = {"http", "https"}
@@ -1394,6 +1677,7 @@ def protect_request():
 
 @app.after_request
 def add_privacy_headers(response):
+    global API_REQUESTS
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -1405,8 +1689,22 @@ def add_privacy_headers(response):
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
         )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; "
+            "upgrade-insecure-requests"
+        )
     if request.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store, max-age=0"
+        route = request.url_rule.rule if request.url_rule else "/<unmatched>"
+        with RATE_LIMIT_LOCK:
+            API_REQUESTS += 1
+            metric_key = (request.method, route)
+            API_ROUTE_COUNTS[metric_key] = API_ROUTE_COUNTS.get(metric_key, 0) + 1
+            API_ROUTE_COUNTS.move_to_end(metric_key)
+            while len(API_ROUTE_COUNTS) > API_ROUTE_COUNTS_MAX:
+                API_ROUTE_COUNTS.popitem(last=False)
     if request.path.startswith(
         ("/api/", "/auth", "/checkout", "/inbox", "/starred", "/sent", "/drafts", "/spam", "/folder/", "/compose", "/settings")
     ):
@@ -1416,24 +1714,7 @@ def add_privacy_headers(response):
 
 @app.get("/api/healthz")
 def health():
-    return jsonify(
-        {
-            "status": "ok",
-            "mailDomain": MAIL_DOMAIN,
-            "mailProvider": "brevo",
-            "receivingProvider": "mailgun",
-            "brevoConfigured": bool(
-                os.environ.get("BREVO_API_KEY", "").strip()
-                or os.environ.get("REPLIT_CONNECTORS_HOSTNAME", "").strip()
-            ),
-            "brevoSenderDomain": BREVO_SENDER_DOMAIN,
-            "resendConfigured": bool(os.environ.get("RESEND_API_KEY", "").strip()),
-            "mailgunDomain": os.environ.get("MAILGUN_DOMAIN", MAIL_DOMAIN),
-            "mailgunReceivingConfigured": bool(
-                os.environ.get("MAILGUN_SIGNING_KEY", "").strip()
-            ),
-        }
-    )
+    return jsonify({"status": "ok"})
 
 
 @app.post("/api/auth/check-access-code")
@@ -1554,6 +1835,7 @@ def admin_overview():
             "controls": control_state(),
             "announcement": get_announcement(),
             "audit": audit,
+            "traffic": api_metrics_snapshot(),
         }
     )
 
@@ -1566,7 +1848,7 @@ def admin_list_users():
     with db_connection() as connection:
         rows = connection.execute(
             """
-            SELECT id, username, email, role, created_at
+            SELECT id, username, role, created_at
             FROM users WHERE deletion_requested_at IS NULL
             ORDER BY created_at DESC LIMIT 1000
             """
@@ -1577,7 +1859,6 @@ def admin_list_users():
                 {
                     "id": row["id"],
                     "username": row["username"],
-                    "email": row["email"],
                     "role": role_for_user(row),
                     "createdAt": row["created_at"],
                 }
@@ -1604,7 +1885,7 @@ def admin_update_user_role(user_id: str):
         )
         row = connection.execute(
             """
-            SELECT id, username, email, role, created_at
+            SELECT id, username, role, created_at
             FROM users WHERE id = ? AND deletion_requested_at IS NULL
             """,
             (user_id,),
@@ -1620,7 +1901,6 @@ def admin_update_user_role(user_id: str):
             "user": {
                 "id": row["id"],
                 "username": row["username"],
-                "email": row["email"],
                 "role": role_for_user(row),
                 "createdAt": row["created_at"],
             }
@@ -1652,9 +1932,29 @@ def admin_update_control():
         if enabled and not message:
             message = "WEBSITE SHUT DOWN BY ADMIN | WILL BE BACK SOON"
         write_system_setting("lockdown_message", message)
+    expiry_setting = {
+        "apiPaused": "api_paused_expires_at",
+        "sendingEnabled": "sending_enabled_expires_at",
+        "receivingEnabled": "receiving_enabled_expires_at",
+    }.get(key)
+    duration_label = ""
+    if expiry_setting:
+        if enabled:
+            write_system_setting(expiry_setting, "")
+        else:
+            duration = data.get("durationMinutes", 60)
+            if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+                return error_response("Pause duration must be a whole number of minutes.", 400)
+            if int(duration) != duration or not 1 <= int(duration) <= 1440:
+                return error_response("Pause duration must be between 1 and 1,440 minutes.", 400)
+            duration = int(duration)
+            write_system_setting(
+                expiry_setting, str(int(time.time()) + duration * 60)
+            )
+            duration_label = f" for {duration} minutes"
     write_system_setting(setting_key, "1" if enabled else "0")
     write_admin_audit(
-        f"{label} {'enabled' if enabled else 'disabled'}",
+        f"{label} {'enabled' if enabled else 'disabled'}{duration_label}",
         str(admin["username"]),
     )
     return jsonify({"controls": control_state()})

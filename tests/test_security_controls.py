@@ -46,9 +46,16 @@ class SecurityControlsTests(unittest.TestCase):
     def captcha_payload(self):
         challenge = self.client.get("/api/security/captcha").get_json()
         left, right = re.findall(r"\d+", challenge["question"])
+        work_nonce = 0
+        while not service.hashlib.sha256(
+            f"{challenge['token']}:{work_nonce}".encode("utf-8")
+        ).hexdigest().startswith("000"):
+            work_nonce += 1
         return {
             "captchaToken": challenge["token"],
             "captchaAnswer": str(int(left) + int(right)),
+            "captchaWorkNonce": str(work_nonce),
+            "website": "",
         }
 
     def sign_in_test_user(self):
@@ -89,6 +96,20 @@ class SecurityControlsTests(unittest.TestCase):
             )
             self.assertEqual(signed_in.status_code, 200)
             self.assertEqual(self.client.get("/api/admin/overview").status_code, 200)
+
+            paused = self.client.post(
+                "/api/admin/control",
+                json={"key": "sendingEnabled", "enabled": False, "durationMinutes": 15},
+            )
+            self.assertEqual(paused.status_code, 200)
+            state = service.control_state()
+            self.assertFalse(state["sendingEnabled"])
+            self.assertIsNotNone(state["sendingEnabledUntil"])
+            invalid_pause = self.client.post(
+                "/api/admin/control",
+                json={"key": "receivingEnabled", "enabled": False, "durationMinutes": 1441},
+            )
+            self.assertEqual(invalid_pause.status_code, 400)
 
             promoted = self.client.patch(
                 f"/api/admin/users/{self.user_id}",
@@ -153,11 +174,52 @@ class SecurityControlsTests(unittest.TestCase):
             self.client.post("/api/auth/signin", json={"accessKey": "0" * 50})
             for _ in range(13)
         ]
-        self.assertTrue(all(response.status_code == 400 for response in results[:12]))
-        self.assertEqual(results[-1].status_code, 429)
+        self.assertTrue(all(response.status_code == 400 for response in results[:4]))
+        self.assertTrue(all(response.status_code == 429 for response in results[4:]))
         retry_after = int(results[-1].headers["Retry-After"])
         self.assertGreaterEqual(retry_after, 1)
         self.assertLessEqual(retry_after, 60)
+
+    def test_admin_vault_is_generated_as_an_encrypted_browser_credential_file(self):
+        vault_path = Path(self.database_dir.name) / "bye" / "admin-access.enc"
+        password = "unit-test-vault-passphrase-7d3a9e5b"
+        with (
+            patch.object(service, "ADMIN_VAULT_PATH", vault_path),
+            patch.object(service, "ADMIN_VAULT_PASSWORD", password),
+            patch.dict(service.os.environ, {"MORALTOWN_ADMIN_ACCESS_KEY": ""}),
+        ):
+            access_key = service.load_admin_access_key()
+            envelope_text = vault_path.read_text(encoding="utf-8")
+            envelope = json.loads(envelope_text)
+            self.assertRegex(access_key, r"^\d{50}$")
+            self.assertEqual(envelope["format"], "fpeds-encrypted-key")
+            self.assertEqual(envelope["username"], "admin")
+            self.assertNotIn(access_key, envelope_text)
+            self.assertEqual(service._read_admin_vault(password), access_key)
+            with self.assertRaises(service.InvalidTag):
+                service._read_admin_vault("incorrect-vault-password")
+            self.assertEqual(vault_path.stat().st_mode & 0o777, 0o600)
+
+    def test_cross_site_state_changes_are_rejected(self):
+        response = self.client.post(
+            "/api/auth/signout",
+            headers={"Sec-Fetch-Site": "cross-site"},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_expired_operational_pauses_resume_automatically(self):
+        expired = str(int(service.time.time()) - 1)
+        service.write_system_setting("api_paused", "1")
+        service.write_system_setting("api_paused_expires_at", expired)
+        service.write_system_setting("sending_enabled", "0")
+        service.write_system_setting("sending_enabled_expires_at", expired)
+        service.write_system_setting("receiving_enabled", "0")
+        service.write_system_setting("receiving_enabled_expires_at", expired)
+
+        controls = service.control_state()
+        self.assertFalse(controls["apiPaused"])
+        self.assertTrue(controls["sendingEnabled"])
+        self.assertTrue(controls["receivingEnabled"])
 
 
 if __name__ == "__main__":
