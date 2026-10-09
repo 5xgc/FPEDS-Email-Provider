@@ -1,0 +1,31 @@
+.film-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.35vmin;
+  background: rgba(12, 12, 12, 0.96);
+  box-shadow: 0 2.4vmin 8vmin rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px);
+}
+
+.film-window-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.6vmin;
+  padding: 0 1.45vmin;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .film-window *,
+  .film-window *::before,
+  .film-window *::after {
+    scroll-behavior: auto !important;
+  }
+}

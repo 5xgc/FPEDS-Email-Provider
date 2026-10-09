@@ -250,6 +250,29 @@ export default function SettingsPage() {
             </div>
           </SettingsCard>
 
+          <SettingsCard icon={Download} eyebrow="Desktop app" title="MoralTown Mail for Windows" description="Install the desktop companion and keep using the access key for your MoralTown mailbox." className="lg:col-span-2" >
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-4">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/[.08] text-primary">
+                  <Download className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium">Windows setup · 134 MB</p>
+                  <p className="mt-1 max-w-lg text-xs leading-5 text-muted-foreground">Download the MoralTown installer. Your mailbox stays tied to the original access key.</p>
+                  <p className="mt-3 font-mono text-[9px] uppercase tracking-[.13em] text-muted-foreground">Built and owned by the MoralTown group</p>
+                </div>
+              </div>
+              <a
+                href="/api/download/desktop"
+                download="MoralTownMailSetup.exe"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#11100f]"
+                data-testid="button-download-desktop-settings"
+              >
+                <Download className="h-4 w-4" /> Download app
+              </a>
+            </div>
+          </SettingsCard>
+
           <SettingsCard icon={Shield} eyebrow="Privacy controls" title="Anonymous mode" description="MoralTown does not add optional analytics. This mode masks rendered account and sender addresses on this device; it cannot hide network, provider, or server records.">
             <div className="divide-y divide-white/[.07]">
               <div className="flex items-center justify-between gap-4 py-4 first:pt-0">

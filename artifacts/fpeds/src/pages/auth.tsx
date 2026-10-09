@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, Copy, FileKey2, KeyRound, LockKeyhole, ShieldCheck, Upload, X } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight, Check, Copy, Download, FileKey2, KeyRound, LockKeyhole, ShieldCheck, Upload, X } from 'lucide-react';
 import { getGetCurrentUserQueryKey, useGetCurrentUser, useSignIn, useSignUp } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,10 @@ export default function AuthPage() {
   const signIn = useSignIn();
   const signUp = useSignUp();
   const pending = signIn.isPending || signUp.isPending;
+  const reduceMotion = useReducedMotion();
+  const [desktopPromoOpen, setDesktopPromoOpen] = useState(
+    () => !adminLogin && mode !== 'file',
+  );
 
   const refreshCaptcha = useCallback(async () => {
     setCaptchaAnswer('');
@@ -66,6 +71,19 @@ export default function AuthPage() {
   }, []);
 
   useEffect(() => { void refreshCaptcha(); }, [refreshCaptcha]);
+
+  useEffect(() => {
+    setDesktopPromoOpen(!adminLogin && mode !== 'file');
+  }, [adminLogin, mode]);
+
+  useEffect(() => {
+    if (!desktopPromoOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDesktopPromoOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [desktopPromoOpen]);
 
   const captchaProof = () => {
     if (!captcha || !captchaAnswer.trim() || captchaWorkNonce === null) {
@@ -117,6 +135,7 @@ export default function AuthPage() {
 
   const openMode = (nextMode: 'signin' | 'signup' | 'file') => {
     setMode(nextMode);
+    setDesktopPromoOpen(!adminLogin && nextMode !== 'file');
     setLocation(nextMode === 'signup' ? '/auth?mode=signup' : '/auth');
     setError('');
     setCopied(false);
@@ -326,6 +345,137 @@ export default function AuthPage() {
           </section>
         </div>
       )}
+      <AnimatePresence>
+        {desktopPromoOpen && !adminLogin && mode !== 'file' && (
+          <motion.div
+            key="desktop-app-promo-backdrop"
+            className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/75 px-4 py-7 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0.12 : 0.24 }}
+            onClick={() => setDesktopPromoOpen(false)}
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="desktop-promo-title"
+              aria-describedby="desktop-promo-description"
+              data-testid="dialog-desktop-app-promo"
+              className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#11100f]/95 text-[#f3f0ed] shadow-[0_38px_140px_rgba(0,0,0,.7)]"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 26, scale: 0.96, rotateX: -4 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.98 }}
+              transition={reduceMotion
+                ? { duration: 0.12 }
+                : { type: 'spring', stiffness: 240, damping: 25 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setDesktopPromoOpen(false)}
+                className="absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-black/35 text-white/55 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Close desktop app promotion"
+                data-testid="button-close-desktop-promo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="grid md:grid-cols-[1.02fr_.98fr]">
+                <div className="relative z-[1] flex flex-col justify-center p-6 sm:p-9 md:p-10">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/images/moraltown-brand.png"
+                      alt="MoralTown"
+                      className="h-14 w-14 rounded-2xl border border-white/10 bg-black object-contain"
+                    />
+                    <div>
+                      <p className="font-mono text-[9px] uppercase tracking-[.22em] text-primary">MoralTown Mail</p>
+                      <p className="mt-1 text-xs text-white/45">Windows desktop companion</p>
+                    </div>
+                  </div>
+                  <p className="mt-8 font-mono text-[10px] uppercase tracking-[.22em] text-white/40">Your inbox, at your desk</p>
+                  <h2 id="desktop-promo-title" className="mt-3 max-w-lg font-display text-4xl leading-[.98] tracking-[-.055em] sm:text-5xl">
+                    Mail that feels like yours.
+                  </h2>
+                  <p id="desktop-promo-description" className="mt-4 max-w-md text-sm leading-6 text-white/55">
+                    Take MoralTown Mail to your Windows desktop. Your access key still opens your mailbox.
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-primary/20 bg-primary/[.08] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[.12em] text-primary">Windows · 134 MB</span>
+                    <span className="rounded-full border border-white/10 bg-white/[.035] px-3 py-1.5 font-mono text-[9px] uppercase tracking-[.12em] text-white/55">Encrypted at rest</span>
+                  </div>
+                  <div className="mt-7 flex flex-col gap-2 sm:flex-row">
+                    <a
+                      href="/api/download/desktop"
+                      download="MoralTownMailSetup.exe"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#11100f]"
+                      data-testid="button-download-desktop-promo"
+                    >
+                      <Download className="h-4 w-4" /> Download for Windows
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setDesktopPromoOpen(false)}
+                      className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/10 px-5 py-3 text-sm text-white/65 transition hover:bg-white/[.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                      data-testid="button-dismiss-desktop-promo"
+                    >
+                      Continue in webmail
+                    </button>
+                  </div>
+                  <p className="mt-5 font-mono text-[9px] uppercase tracking-[.16em] text-white/35">Built and owned by the MoralTown group</p>
+                </div>
+
+                <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden border-t border-white/[.07] bg-[radial-gradient(ellipse_at_72%_22%,rgba(221,56,56,.25),transparent_47%),linear-gradient(145deg,#171414,#0a0a0a_72%)] p-6 sm:min-h-[360px] sm:p-9 md:border-l md:border-t-0">
+                  <div className="pointer-events-none absolute -right-20 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full border border-primary/15" />
+                  <div className="pointer-events-none absolute -right-12 top-1/2 h-56 w-56 -translate-y-1/2 rounded-full border border-primary/15" />
+                  <div className="relative w-full max-w-[390px] -rotate-2 rounded-2xl border border-white/15 bg-[#0d0d0d]/90 p-3 shadow-[0_30px_80px_rgba(0,0,0,.55)]">
+                    <div className="flex items-center justify-between border-b border-white/[.08] px-2 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_16px_rgba(221,56,56,.7)]" />
+                        <span className="font-display text-xs tracking-tight">MoralTown Mail</span>
+                      </div>
+                      <div className="flex gap-1.5" aria-hidden="true">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[88px_1fr] gap-3 pt-3">
+                      <div className="space-y-2 border-r border-white/[.07] pr-3 font-mono text-[8px] uppercase tracking-[.08em] text-white/35">
+                        <p className="rounded-md bg-primary/10 px-2 py-2 text-primary">Inbox</p>
+                        <p className="px-2 py-1">Sent</p>
+                        <p className="px-2 py-1">Projects</p>
+                        <p className="px-2 py-1">Drafts</p>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="rounded-xl border border-primary/20 bg-primary/[.06] p-3">
+                          <p className="font-mono text-[8px] uppercase tracking-[.14em] text-primary">Private inbox</p>
+                          <p className="mt-2 text-sm font-semibold">Welcome to MoralTown</p>
+                          <p className="mt-1 text-[10px] text-white/40">Your mailbox is ready.</p>
+                        </div>
+                        <div className="flex items-center gap-2 rounded-xl border border-white/[.07] p-3">
+                          <span className="grid h-7 w-7 place-items-center rounded-full bg-white/[.06] text-[9px] font-semibold text-white/60">R</span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[10px] font-medium">A note for today</p>
+                            <p className="mt-1 truncate text-[9px] text-white/35">Filed in Projects</p>
+                          </div>
+                          <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-white/[.07] px-1 pt-3 font-mono text-[8px] uppercase tracking-[.12em] text-white/35">
+                      <span>Key-based access</span><span className="text-primary">Workspace ready</span>
+                    </div>
+                  </div>
+                  <span className="absolute bottom-5 left-5 rounded-full border border-white/10 bg-black/65 px-3 py-1.5 font-mono text-[8px] uppercase tracking-[.15em] text-white/55 backdrop-blur">
+                    A quieter desktop
+                  </span>
+                </div>
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <LanguagePicker placement="fixed" />
     </main>
   );

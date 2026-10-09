@@ -1,0 +1,29 @@
+kind = "video"
+videoAspectRatio = "16:9"
+previewPath = "/moraltown-mail-film/"
+title = "MoralTown Mail — Web & Desktop Film"
+description = "A short animated product film touring MoralTown Mail's access-key login, mailbox, folders, compose flow, account settings, and Windows desktop companion, with precise privacy and ownership claims."
+version = "1.0.0"
+id = "artifacts/moraltown-mail-film"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/moraltown-mail-film/" ]
+localPort = 23324
+
+[services.development]
+run = "pnpm --filter @workspace/moraltown-mail-film run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/moraltown-mail-film", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/moraltown-mail-film/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23324"
+BASE_PATH = "/moraltown-mail-film/"

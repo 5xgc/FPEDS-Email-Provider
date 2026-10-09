@@ -37,7 +37,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, jsonify, request, send_file, send_from_directory, session
 from crypto_payments import (
     ASSETS as PAYMENT_ASSETS,
     PaymentProviderError,
@@ -52,6 +52,9 @@ from crypto_payments import (
 
 
 ROOT = Path(__file__).resolve().parent
+DESKTOP_APP_INSTALLER = (
+    ROOT / "attached_assets" / "MoralMailSetup_1791506202329.exe"
+)
 STATIC_DIR_CANDIDATES = (
     ROOT / "dist" / "public",
     ROOT / "artifacts" / "fpeds" / "dist" / "public",
@@ -1730,6 +1733,20 @@ def add_privacy_headers(response):
     ):
         response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     return response
+
+
+@app.get("/api/download/desktop")
+def download_desktop_app():
+    if not DESKTOP_APP_INSTALLER.is_file():
+        return error_response("The desktop installer is not available.", 503)
+    return send_file(
+        DESKTOP_APP_INSTALLER,
+        mimetype="application/octet-stream",
+        as_attachment=True,
+        download_name="MoralTownMailSetup.exe",
+        conditional=True,
+        max_age=3600,
+    )
 
 
 @app.get("/api/healthz")
