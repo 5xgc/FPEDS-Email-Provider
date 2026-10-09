@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ChevronDown, ChevronUp, Pause, Play, Repeat, Volume2, VolumeX } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { ChevronDown, ChevronUp, Pause, Play, Repeat } from 'lucide-react';
 import VideoTemplate, { SCENE_DURATIONS } from './VideoTemplate';
 import { useSceneControls } from './useSceneControls';
 
@@ -36,7 +36,6 @@ interface ControlBarProps {
   collapsed: boolean;
   locked: boolean;
   paused: boolean;
-  muted: boolean;
   sceneKeys: string[];
   activeIndex: number;
   activeDuration: number;
@@ -45,7 +44,6 @@ interface ControlBarProps {
   tick: number;
   onTogglePause: () => void;
   onToggleLock: () => void;
-  onToggleMute: () => void;
   onJumpTo: (index: number) => void;
   onToggleCollapsed: () => void;
 }
@@ -55,7 +53,6 @@ function ControlBar({
   collapsed,
   locked,
   paused,
-  muted,
   sceneKeys,
   activeIndex,
   activeDuration,
@@ -64,7 +61,6 @@ function ControlBar({
   tick,
   onTogglePause,
   onToggleLock,
-  onToggleMute,
   onJumpTo,
   onToggleCollapsed,
 }: ControlBarProps) {
@@ -95,16 +91,6 @@ function ControlBar({
         aria-pressed={locked}
       >
         <Repeat className="h-6 w-6 sm:h-8 sm:w-8" />
-      </button>
-      <button
-        type="button"
-        onClick={onToggleMute}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white/65 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:h-14 sm:w-14"
-        title={muted ? 'Unmute music' : 'Mute music'}
-        aria-label={muted ? 'Unmute music' : 'Mute music'}
-        aria-pressed={muted}
-      >
-        {muted ? <VolumeX className="h-5 w-5 sm:h-7 sm:w-7" /> : <Volume2 className="h-5 w-5 sm:h-7 sm:w-7" />}
       </button>
       <div className="hidden h-10 w-px shrink-0 bg-white/15 sm:block" aria-hidden="true" />
       <PlaybackStatus
@@ -217,7 +203,6 @@ export default function VideoWithControls() {
   const [collapsed, setCollapsed] = useState(false);
   const [hovering, setHovering] = useState(false);
   const [tapPinned, setTapPinned] = useState(false);
-  const [muted, setMuted] = useState(false);
   const {
     sceneKeys,
     activeIndex,
@@ -239,13 +224,13 @@ export default function VideoWithControls() {
     jumpTo(index);
     announceSceneSelection(index, sceneKeys);
   }, [jumpTo, sceneKeys]);
-  const handlePointerEnter = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerEnter = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse') setHovering(true);
   }, []);
-  const handlePointerLeave = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerLeave = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse') setHovering(false);
   }, []);
-  const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== 'mouse' && collapsed) setTapPinned(true);
   }, [collapsed]);
   const handleToggleCollapsed = useCallback(() => {
@@ -267,7 +252,7 @@ export default function VideoWithControls() {
 
   useEffect(() => {
     if (!(collapsed && tapPinned)) return;
-    const onDocumentPointerDown = (event: PointerEvent) => {
+    const onDocumentPointerDown = (event: globalThis.PointerEvent) => {
       if (event.pointerType === 'mouse') return;
       if (sensorRef.current && !sensorRef.current.contains(event.target as Node)) setTapPinned(false);
     };
@@ -284,7 +269,6 @@ export default function VideoWithControls() {
         durations={durations}
         loop
         paused={paused}
-        muted={muted}
         onSceneChange={onSceneChange}
       />
       <div
@@ -301,7 +285,6 @@ export default function VideoWithControls() {
           collapsed={collapsed}
           locked={locked}
           paused={paused}
-          muted={muted}
           sceneKeys={sceneKeys}
           activeIndex={activeIndex}
           activeDuration={activeDuration}
@@ -310,7 +293,6 @@ export default function VideoWithControls() {
           tick={tick}
           onTogglePause={togglePause}
           onToggleLock={toggleLock}
-          onToggleMute={() => setMuted((value) => !value)}
           onJumpTo={handleJumpTo}
           onToggleCollapsed={handleToggleCollapsed}
         />

@@ -62,7 +62,7 @@ export function Shot07() {
             animate={{ opacity: 1 }}
             transition={{ delay: 1.7, duration: 0.35 }}
           >
-            Built and owned by MoralTown
+            Built and owned by the MoralTown group
           </motion.p>
         </div>
         <motion.div

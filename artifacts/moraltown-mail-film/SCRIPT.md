@@ -8,7 +8,7 @@
 - **Motion:** A restrained virtual camera tours a compact world of UI surfaces; red rules and envelope forms carry compound cuts; oversized type resolves in short, timed bursts.
 - **Arc:** Brand hook → access-key entry → inbox and folders → message detail → sending and receiving → precise privacy/account controls → Windows companion and ownership lockup.
 - **Payoff:** The detailed web interface collapses into the supplied mark on a clean, high-contrast closing field, with the ownership statement locked beside it.
-- **Format/runtime:** 16:9 landscape, 30 seconds. Seven shots total 30,000 ms. No voiceover or sound effects; one instrumental bed. On-screen UI data is fictional demo content.
+- **Format/runtime:** 16:9 landscape, 30 seconds. Seven shots total 30,000 ms. No music, voiceover, or sound effects; the film is intentionally silent. On-screen UI data is fictional demo content.
 - **Claim boundary:** Say “encrypted at rest,” not “end-to-end encrypted.” The film shows access-key sign-in, per-mailbox organization, and administrator lockdown without claiming that providers or transport networks cannot process mail.
 
 ## Timeline
@@ -32,14 +32,14 @@
   - 00.00s: `MORALTOWN` is already partly visible at frame left; a red stroke enters from the top edge.
   - 00.25s: `MAIL THAT` resolves above the logo.
   - 00.72s: `BELONGS TO YOU.` resolves below it.
-  - 01.45s: small line `MORALTOWN MAIL` settles in the lower-left safe area and stays through 02.70s.
+  - 01.45s: the logo and headline stay legible while the red ring finishes tracing.
   - 02.70–03.50s: copy remains legible while the red stroke closes into a keyhole at center-right.
 - **Composition:** 16:9 black field. The provided white logo occupies about half the frame height, cropped slightly at the left edge but remains readable. Headline sits in the upper-left safe area, separated from the mark; one narrow red line owns the right third.
 - **Artistic idea:** The ring is drawn around the logo's central star detail, then leaves it as a keyhole, making the actual supplied mark—not a fabricated symbol—the visual source for the login transition.
 - **Timed choreography:** 00.00–00.30s: line snaps on in two red segments with a 0.45s interval. 00.25–00.90s: headline masks reveal upward in two beats. 00.50–01.30s: logo sharpens from a close soft crop and settles at full scale. 01.40–02.25s: the line traces around the central mark. 02.25–03.50s: the ring contracts, gains a keyhole cutout, and moves toward the next shot's login field; no empty background tail.
 - **Transition contract:** The red keyhole ends at the same screen position and approximate size as the access-key field's focus ring in Shot 02. The black field continues under a brief perspective fold.
 - **Assets and technique:** Supplied `icon_1791506190300.png`; CSS clip-path and SVG stroke tracing; Space Grotesk display; no generated or redrawn logo.
-- **Sound intent:** Instrumental begins with a low, clean impact on the first red stroke; the next pulse should support the login reveal. Exact beat alignment remains unverified until playback.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 02 / 03.50–07.50 / 4.00s — “ONE KEY. YOUR MAILBOX.”
 
@@ -56,7 +56,7 @@
 - **Timed choreography:** 03.50–04.15s: the keyhole opens into the access field with a short 3D fold. 04.15–04.85s: masked digits resolve in three grouped snaps. 04.85–05.65s: the camera pulls back to reveal the sign-in surface while `KEY-BASED SIGN-IN` tracks into the empty right zone. 05.65–06.60s: a red outline moves around the field and then becomes the inbox rail. 06.60–07.50s: the interface tilts and scales toward the viewer, carrying the rail into the inbox.
 - **Transition contract:** The moving red rail lands on the left edge of the inbox, aligning with the active-folder strip in Shot 03.
 - **Assets and technique:** Custom interface artwork based on the current MoralTown auth screen; fictional masked digits only; perspective fold plus matched camera pull.
-- **Sound intent:** A dry key-like tick on each digit group, backed by the single instrumental track; no speech or generated effects.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 03 / 07.50–12.00 / 4.50s — “A QUIETER KIND OF INBOX.”
 
@@ -65,7 +65,7 @@
   - 07.50s: `INBOX` and `3 conversations` appear in the interface header.
   - 08.10s: folders `Inbox`, `Sent`, `Drafts`, and `Projects` resolve down the left rail.
   - 08.75s: fictional sender `Rowan` and subject `A note for today` arrive as the first row.
-  - 09.60s: `Search mailbox` types into the search surface, then stays as a visible placeholder.
+  - 09.60s: `Search mailbox` reveals inside the search surface, then stays as a visible placeholder.
   - 10.30s: `Welcome to your private inbox` arrives as a second row; a red unread marker pulses once.
   - 11.25s: `Organize messages. Keep your focus.` appears in the open right-side zone through 11.70s.
 - **Composition:** Wide, three-quarter UI surface, slightly left of center, on a split black/red field. The interface occupies at least 70% of the short edge. Text row and folder labels remain large enough to read at the settled frame.
@@ -73,7 +73,7 @@
 - **Timed choreography:** 07.50–08.10s: the active rail continues in from Shot 02 while the camera pulls back to show the whole inbox. 08.10–08.90s: folder labels unfold one at a time. 08.75–10.30s: message rows arrive with alternating 0.35s intervals and a slight depth settle; no data is real. 10.30–11.10s: the second row becomes the focus; the first row remains visible. 11.10–12.00s: camera punches in on the selected row; it grows to fill the frame and begins a clip-path morph into message detail.
 - **Transition contract:** The highlighted row's left edge, red unread marker, and sender initials card are preserved through the scale-through into Shot 04's detail panel.
 - **Assets and technique:** Interface artwork based on the current inbox page; use a fictional sender and subject. Red path is SVG stroke animation; perspective plane is capped at 1.3x.
-- **Sound intent:** Three restrained percussive ticks coincide with the arrivals; instrumental continues. No beat match is claimed until checked.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 04 / 12.00–16.00 / 4.00s — “READ. ORGANIZE. MOVE ON.”
 
@@ -90,7 +90,7 @@
 - **Timed choreography:** 12.00–12.60s: row scale-through resolves into the open detail panel. 12.60–13.55s: subject and body reveal in staggered line masks. 13.55–14.20s: toolbar controls trace on sequentially. 14.20–14.70s: folder selection snaps from `Inbox` to `Projects` with a short split-color wipe. 14.70–15.60s: confirmation settles; a second envelope outline begins to emerge behind the panel. 15.60–16.00s: the panel folds into two opposing envelope paths, with no empty tail.
 - **Transition contract:** The two envelope paths become outgoing and incoming mail in Shot 05, one moving left-to-right and the other right-to-left.
 - **Assets and technique:** Custom interface artwork based on current message-detail view and its visible star/move/close toolbar; SVG paper fold, red folder clip-path.
-- **Sound intent:** A soft paper-like instrumental accent at the folder snap; no standalone SFX layer.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 05 / 16.00–20.00 / 4.00s — “SEND OUT. RECEIVE HERE.”
 
@@ -107,7 +107,7 @@
 - **Timed choreography:** 16.00–16.60s: message detail's outgoing envelope opens into the compose form while the incoming envelope already occupies the right edge. 16.60–17.35s: field values appear in quick, readable edits. 17.35–18.00s: the visual-only send action compresses the draft into a thin red line. 18.00–18.70s: inbound envelope expands into a message row. 18.70–19.45s: the two tracks cross and merge into one inbox surface. 19.45–20.00s: camera lifts above the surface as the card corner becomes the next settings surface.
 - **Transition contract:** The centered inbox's upper-right corner follows through into the upper-left corner of the settings card in Shot 06.
 - **Assets and technique:** Fictional composer UI based on the existing Compose page; CSS transforms and two SVG paths with visible in/out movement.
-- **Sound intent:** The music opens slightly here, then returns to the restrained base by 19.50s; exact beat alignment remains to be verified.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 06 / 20.00–25.00 / 5.00s — “PRIVATE BY DESIGN.”
 
@@ -125,7 +125,7 @@
 - **Timed choreography:** 20.00–20.60s: previous UI corner opens as a split card. 20.60–21.35s: masked key field and access label resolve; no unmasked key appears. 21.35–22.20s: the exact `ENCRYPTED AT REST` claim builds in one typographic reveal. 22.20–23.20s: two fictional mailbox labels appear on separate orbits connected to one owner ring. 23.20–24.15s: camera pulls back; the two orbits remain separate while the ring stays fixed. 24.15–25.00s: a single red boundary closes to form the desktop installer badge and pushes forward through the lens.
 - **Transition contract:** The owner ring matches the round icon on the desktop promotion card in Shot 07; the camera push resolves on that badge, not on an empty color wipe.
 - **Assets and technique:** Interface artwork based on the current settings and account controls; use only the verified “encrypted at rest,” shared-account, and administrator-lockdown claims. Never write “end-to-end encrypted.”
-- **Sound intent:** Music simplifies to a low pulse, then rises into the final brand reveal. No voiceover or generated SFX.
+- **Sound intent:** Silence. No music, voiceover, or sound effects.
 
 ### Shot 07 / 25.00–30.00 / 5.00s — “MORALTOWN MAIL.”
 
@@ -136,7 +136,7 @@
   - 26.30s: a compact desktop app window opens behind the supplied white logo.
   - 27.00s: `The same MoralTown mailbox, now on your desktop.` appears and holds through 28.15s.
   - 28.20s: app surface collapses into the supplied logo on a warm-white field.
-  - 28.75s: `BUILT AND OWNED BY MORALTOWN` appears beneath the logo.
+  - 28.75s: `BUILT AND OWNED BY THE MORALTOWN GROUP` appears beneath the logo.
   - 29.10–30.00s: end card stays legible as the red ring traces once and grows toward Shot 01's opening crop.
 - **Composition:** Start centered and dimensional with the installer card large enough to read. Resolve to an uncluttered warm-white full-frame end card with the supplied white-on-black logo placed on a black plate, preserving its real colors. Ownership line sits below in black type, safely inset.
 - **Artistic idea:** The fictional desktop window folds into the real logo's existing black field; no extra mark is redrawn and no false system dialog is depicted as a screenshot.
@@ -144,6 +144,10 @@
 - **Transition contract:** End frame's growing red ring matches Shot 01's opening stroke in scale and position; the supplied logo remains visible until the ring takes over, avoiding a blank loop boundary.
 - **Assets and technique:** User-supplied logo; actual uploaded installer metadata (`PE32` Windows GUI, 134,357,530 bytes) informs the label only. The video does not attest to installer signature or successful installation. Custom desktop-interface artwork; red scale-through and palette inversion.
 - **Sound intent:** One uplifting, restrained electronic instrumental resolves on the ownership lockup; keep the final transition active. No voiceover, no SFX, and no synchronization claim until playback has been checked.
+
+## Final sound state
+
+The rendered film is silent: no soundtrack, voiceover, or sound effects are included. This final decision supersedes any earlier draft music cue.
 
 ## Variety and claim review
 

@@ -34,6 +34,12 @@ export function Shot03() {
           </div>
           <span className="font-mono text-[1.4vmin] uppercase tracking-[.16em] text-white/35">3 conversations</span>
         </motion.div>
+        <motion.div
+          className="w-full"
+          initial={{ scale: 1, x: 0 }}
+          animate={{ scale: [1, 1.015, 1.055], x: [0, 0, -14] }}
+          transition={{ delay: 1.45, duration: 2.8, ease: EASE }}
+        >
         <AppWindow className="h-[60vmin] max-h-[67vh] min-h-[36vmin] -rotate-[.5deg]">
           <div className="flex h-full min-h-0">
             <aside className="w-[22%] shrink-0 border-r border-white/[.08] bg-black/20 px-[1.5vmin] py-[1.5vmin]">
@@ -58,7 +64,14 @@ export function Shot03() {
             </aside>
             <div className="flex min-w-0 flex-1 flex-col p-[1.6vmin]">
               <div className="mb-[1.15vmin] flex items-center gap-[.8vmin] rounded-[.8vmin] border border-white/[.08] bg-white/[.025] px-[1.1vmin] py-[.75vmin] text-[1.4vmin] text-white/35">
-                <Search className="h-[1.6vmin] w-[1.6vmin]" /> Search mailbox
+                <Search className="h-[1.6vmin] w-[1.6vmin]" />
+                <motion.span
+                  initial={{ clipPath: 'inset(0 100% 0 0)' }}
+                  animate={{ clipPath: 'inset(0 0% 0 0)' }}
+                  transition={{ delay: 2.05, duration: 0.42, ease: EASE }}
+                >
+                  Search mailbox
+                </motion.span>
               </div>
               <div className="grid grid-cols-[.72fr_1.45fr_1.8fr_.7fr] gap-[1vmin] border-b border-white/[.08] px-[1vmin] py-[.6vmin] font-mono text-[1.05vmin] uppercase tracking-[.12em] text-white/25">
                 <span>From</span><span>Subject</span><span>Preview</span><span>Today</span>
@@ -92,11 +105,12 @@ export function Shot03() {
                 transition={{ delay: 1.45, duration: 0.35 }}
               >
                 <span>Organize messages. Keep your focus.</span>
-                <span className="text-primary">Refreshes automatically</span>
+                <span className="text-primary">Mailbox views</span>
               </motion.div>
             </div>
           </div>
         </AppWindow>
+        </motion.div>
       </Stage>
       <motion.div
         className="absolute right-[7vmin] top-[46%] h-[.25vmin] w-[19vmin] origin-left bg-primary"

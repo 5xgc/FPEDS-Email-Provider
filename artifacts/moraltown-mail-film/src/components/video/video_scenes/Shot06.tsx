@@ -100,8 +100,9 @@ export function Shot06() {
           </div>
           <motion.div
             className={`mt-[1.2vmin] flex items-center gap-[.8vmin] rounded-[.8vmin] border px-[1vmin] py-[.8vmin] ${lockdownVisible ? 'border-primary/25 bg-primary/[.07]' : 'border-white/[.07] bg-white/[.025]'}`}
-            animate={lockdownVisible ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-            transition={{ duration: 0.55, ease: EASE }}
+            initial={{ opacity: 0, y: 7 }}
+            animate={lockdownVisible ? { opacity: 1, y: 0, scale: [1, 1.02, 1] } : { opacity: 0, y: 7 }}
+            transition={{ duration: lockdownVisible ? 0.55 : 0.15, ease: EASE }}
           >
             <ShieldCheck className="h-[1.8vmin] w-[1.8vmin] text-primary" />
             <span className="font-mono text-[1.15vmin] uppercase tracking-[.13em] text-white/68">Admin-only lockdown</span>

@@ -58,18 +58,10 @@ export function Shot01() {
           <motion.div
             className="absolute right-[12%] top-[49%] z-20 h-[7vmin] w-[7vmin] rounded-full border-[.45vmin] border-primary shadow-[0_0_3vmin_rgba(224,52,55,.45)]"
             animate={{ scale: [1, 1.12, 0.65], x: [0, 0, 30], opacity: [0.75, 1, 0.9] }}
-            transition={{ duration: 2.2, times: [0, 0.72, 1], ease: EASE }}
+            transition={{ duration: 3.25, times: [0, 0.66, 1], ease: EASE }}
           />
         </motion.div>
       </Stage>
-      <motion.div
-        className="absolute bottom-[3.2vmin] left-[6vmin] font-mono text-[1.1vmin] uppercase tracking-[.22em] text-white/30"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.3, duration: 0.35 }}
-      >
-        Built and owned by the MoralTown group
-      </motion.div>
     </motion.section>
   );
 }
